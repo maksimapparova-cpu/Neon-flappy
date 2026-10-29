@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON FLAPPY · Онлайн</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background: #0a0a1a; min-height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; color: white; }
+        #particleCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        
+        /* Экраны */
+        .screen { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 360px; padding: 8px 12px; z-index: 20; gap: 8px; height: 100vh; overflow-y: auto; }
+        .screen.active { display: flex; }
+        .screen::-webkit-scrollbar { display: none; }
+
+        /* Загрузка */
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 40%, #12002a 0%, #0a0a1a 60%, #000 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 22px; z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        #loading.fade-out { opacity: 0; pointer-events: none; }
+        .loading-logo {
+            font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase;
+            background: linear-gradient(90deg, #0ff, #f0f, #0ff); background-size: 200% auto;
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            animation: logo-glow 2s linear infinite; text-align: center; padding: 0 10px;
+        }
+        @keyframes logo-glow {
+            0% { background-position: 0% center; filter: drop-shadow(0 0 8px #0ff); }
+            50% { filter: drop-shadow(0 0 20px #f0f); }
+            100% { background-position: 200% center; filter: drop-shadow(0 0 8px #0ff); }
+        }
+        .loading-bar { width: 70%; max-width: 280px; height: 6px; background: rgba(0,255,255,0.1); border: 1px solid rgba(0,255,255,0.35); border-radius: 10px; overflow: hidden; box-shadow: 0 0 12px rgba(0,255,255,0.4); }
+        .loading-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0ff, #f0f, #0ff); background-size: 200% auto; animation: bar-fill 2.5s ease-in-out infinite, bar-shift 1.5s linear infinite; border-radius: 10px; }
+        @keyframes bar-fill { 0% { width: 0%; } 50% { width: 85%; } 100% { width: 100%; } }
+        @keyframes bar-shift { to { background-position: 200% center; } }
+        .loading-hint { font-size: 0.85rem; color: #0ff; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 10px #0ff; animation: pulse-anim 1.2s infinite alternate; }
+
+        /* Авторизация */
+        .auth-box { display: flex; flex-direction: column; gap: 12px; width: 100%; background: rgba(10,5,25,0.8); padding: 24px; border-radius: 20px; border: 1px solid #0ff; box-shadow: 0 0 20px rgba(0,255,255,0.3); margin: auto; }
+        .auth-box h2 { text-align: center; margin-bottom: 10px; text-shadow: 0 0 10px #0ff; }
+        .auth-box input { padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.5); border: 1px solid #f0f; color: white; outline: none; font-size: 1rem; }
+        .auth-box input:focus { border-color: #0ff; box-shadow: 0 0 10px #0ff; }
+        .auth-btn { padding: 12px; border-radius: 10px; background: linear-gradient(135deg, #0ff, #00aaff); border: none; font-weight: bold; font-size: 1rem; cursor: pointer; text-transform: uppercase; color: #000; }
+        .auth-switch { text-align: center; font-size: 0.8rem; margin-top: 10px; color: #aaa; cursor: pointer; }
+        .auth-switch span { color: #f0f; text-decoration: underline; }
+
+        /* Меню */
+        .menu { display: flex; gap: 3px; padding: 5px 8px; background: rgba(10,5,25,0.7); border: 1px solid rgba(0,255,255,0.3); border-radius: 40px; flex-wrap: wrap; justify-content: center; width: 100%; flex-shrink: 0; }
+        .menu-btn { background: transparent; border: none; color: #a0f0ff; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; padding: 4px 5px; cursor: pointer; text-shadow: 0 0 6px cyan; }
+        .menu-btn.admin { color: #ff3366; text-shadow: 0 0 6px #ff3366; }
+
+        /* Игра Flappy */
+        .game-wrap { width: 100%; display: flex; flex-direction: column; gap: 6px; align-items: center; flex-shrink: 0; }
+        .flappy-stage {
+            position: relative; width: 100%; height: 340px;
+            border-radius: 18px; overflow: hidden;
+            background: linear-gradient(180deg, #001a33 0%, #003a66 40%, #0066cc 70%, #003a66 100%);
+            border: 2px solid #0ff; box-shadow: 0 0 15px rgba(0,255,255,0.5), inset 0 0 30px rgba(0,255,255,0.1);
+            touch-action: none; cursor: pointer;
+        }
+        .flappy-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+        .flappy-overlay {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; gap: 8px;
+            background: rgba(0,0,0,0.55); text-align: center; padding: 16px; z-index: 2;
+        }
+        .flappy-overlay.hidden { display: none; }
+        .flappy-overlay h2 { font-size: 1.4rem; color: #0ff; text-shadow: 0 0 10px #0ff; }
+        .flappy-overlay p { font-size: 0.8rem; color: #ddd; }
+        .flappy-overlay .big-score { font-size: 2rem; font-weight: 900; color: #ffd700; text-shadow: 0 0 15px #ffd700; }
+        .flappy-start-btn {
+            padding: 10px 24px; background: linear-gradient(135deg, #0ff, #f0f);
+            border: none; border-radius: 40px; font-weight: 900; font-size: 0.9rem;
+            color: #000; cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(0,255,255,0.6);
+        }
+
+        .game-topbar { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-shrink: 0; }
+        .game-badge { padding: 4px 10px; border-radius: 30px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        .badge-score { background: rgba(0,255,255,0.15); color: #0ff; border: 1px solid #0ff; text-shadow: 0 0 8px #0ff; }
+        .badge-best { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid #ffd700; }
+        .badge-total { background: rgba(255,0,255,0.15); color: #f0f; border: 1px solid #f0f; }
+
+        /* Панели */
+        .upgrade-panel, .passive-panel { padding: 8px 10px; background: rgba(10,5,25,0.8); border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; overflow: hidden; flex-shrink: 0; }
+        .upgrade-panel { border: 1px solid rgba(255,0,255,0.35); }
+        .passive-panel { border: 1px solid rgba(0,255,255,0.35); }
+        
+        .panel-label { font-size: 0.6rem !important; text-transform: uppercase; text-align: center; width: 100%; word-break: break-all; white-space: normal; line-height: 1.2; }
+        .panel-label b { font-size: 0.65rem; color: #0ff; }
+
+        .upgrade-btn { width: 100%; padding: 8px; font-size: 0.7rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #2a0a3a, #0a1a3a); border: 2px solid #f0f; border-radius: 40px; cursor: pointer; }
+        .upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; }
+        .passive-btn { width: 100%; padding: 8px; font-size: 0.7rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #0a2a3a, #0a3a2a); border: 2px solid #0ff; border-radius: 40px; cursor: pointer; }
+        .passive-btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; }
+        .progress-bar-wrap { width: 100%; height: 5px; background: rgba(0,0,0,0.6); border-radius: 10px; overflow: hidden; border: 1px solid rgba(0,255,255,0.25); }
+        .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0ff, #f0f, #0ff); transition: width 0.3s; }
+        .level-badge { font-size: 0.6rem; color: #f0f; text-transform: uppercase; margin-top: 1px; }
+        .rank-badge { font-size: 0.7rem; color: #ffd700; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; text-shadow: 0 0 8px rgba(255,215,0,0.6); flex-shrink: 0; }
+
+        /* Общие боксы */
+        .shop-box, .leaderboard-box, .friends-box, .support-box, .admin-box { width: 100%; background: rgba(10,5,25,0.9); padding: 16px; border-radius: 20px; border: 1px solid #0ff; display: flex; flex-direction: column; gap: 8px; max-height: 85vh; margin: auto; }
+        .admin-box { border-color: #ff3366; }
+        .shop-box h3, .leaderboard-box h3, .friends-box h3, .support-box h3, .admin-box h3 { text-align: center; color: #0ff; text-shadow: 0 0 10px #0ff; margin-bottom: 8px; font-size: 1.1rem; }
+        .admin-box h3 { color: #ff3366; text-shadow: 0 0 10px #ff3366; }
+        .shop-list, .leader-list, .friends-list, .admin-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; padding-right: 5px; }
+
+        .shop-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 8px 0; margin-bottom: 8px; border-bottom: 1px solid rgba(0,255,255,0.2); justify-content: center; }
+        .shop-tab { padding: 5px 8px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid transparent; border-radius: 10px; cursor: pointer; font-size: 0.7rem; transition: 0.2s; }
+        .shop-tab.active { background: #0ff; color: #000; font-weight: bold; border-color: #0ff; }
+
+        .shop-item, .friend-item, .admin-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); font-size: 0.8rem; }
+        .admin-item { border-color: rgba(255,51,102,0.3); flex-direction: column; align-items: flex-start; gap: 6px; }
+        .shop-item .preview { font-size: 1.3rem; margin-right: 8px; }
+        .buy-btn, .action-btn { padding: 5px 10px; border-radius: 10px; background: #0ff; color: #000; font-weight: bold; border: none; cursor: pointer; white-space: nowrap; font-size: 0.7rem; }
+        .buy-btn:disabled, .action-btn:disabled { background: #555; color: #aaa; cursor: not-allowed; }
+        .action-btn.danger { background: #ff3366; color: white; }
+        .action-btn.success { background: #00ff00; color: #000; }
+        .action-btn.warning { background: #ffaa00; color: #000; }
+
+        .leader-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.8rem; cursor: pointer; transition: 0.2s; border-radius: 8px; }
+        .leader-item:hover { background: rgba(255,255,255,0.1); }
+        .leader-item.self { background: rgba(0,255,255,0.1); color: #0ff; }
+
+        .refresh-btn { padding: 6px 12px; background: rgba(0,255,255,0.1); color: #0ff; border: 1px solid #0ff; border-radius: 15px; cursor: pointer; font-size: 0.7rem; align-self: center; margin-bottom: 8px; font-weight: bold; transition: 0.2s; }
+        .refresh-btn:hover { background: rgba(0,255,255,0.3); }
+
+        .close-btn { margin-top: 10px; padding: 8px; width: 100%; background: transparent; border: 1px solid #0ff; color: #0ff; border-radius: 20px; cursor: pointer; text-transform: uppercase; font-size: 0.8rem; }
+        .admin-box .close-btn { border-color: #ff3366; color: #ff3366; }
+
+        .support-box textarea { width: 100%; padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.5); border: 1px solid #f0f; color: white; outline: none; resize: none; height: 70px; font-size: 0.8rem; }
+        .support-box .ticket-item { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 6px; font-size: 0.75rem; }
+        .support-box .ticket-reply { background: rgba(0,255,255,0.1); padding: 6px; border-radius: 8px; margin-top: 4px; border-left: 2px solid #0ff; }
+
+        .chat-box { width: 100%; background: rgba(10,5,25,0.9); padding: 16px; border-radius: 20px; border: 1px solid #0ff; display: flex; flex-direction: column; gap: 8px; max-height: 85vh; margin: auto; }
+        .chat-box h3 { text-align: center; color: #0ff; text-shadow:0 0 10px #0ff; margin-bottom: 8px; font-size: 1.1rem; }
+        .chat-messages { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex-grow: 1; padding-right: 5px; min-height: 150px; max-height: 45vh; }
+        .chat-msg { padding: 6px 10px; border-radius: 10px; font-size: 0.8rem; max-width: 80%; line-height: 1.3; }
+        .chat-msg.self { align-self: flex-end; background: rgba(0,255,255,0.2); border: 1px solid #0ff; }
+        .chat-msg.other { align-self: flex-start; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+        .chat-input-area { display: flex; gap: 4px; margin-top: 6px; }
+        .chat-input-area input { flex: 1; padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.5); border: 1px solid #0ff; color: white; outline: none; font-size: 0.8rem; }
+
+        /* Профиль */
+        .profile-box { width: 100%; background: rgba(10,5,25,0.9); padding: 40px 16px 16px 16px; border-radius: 20px; border: 2px solid #0ff; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; overflow: visible; margin: auto; }
+        .profile-banner { position: absolute; top: 0; left: 0; width: 100%; height: 80px; z-index: 0; border-radius: 18px 18px 0 0; }
+        .frame-badge { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: #0a0a1a; border: 3px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.4rem; z-index: 5; box-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; }
+        .profile-avatar { font-size: 3rem; z-index: 1; margin-top: 25px; text-shadow: 0 0 10px #0ff; }
+        .profile-name-wrapper { display: flex; align-items: center; gap: 4px; z-index: 1; margin-top: 4px; }
+        .profile-name { font-size: 1.3rem; font-weight: bold; text-shadow: 0 0 10px #fff; }
+        .profile-pin { font-size: 1.3rem; text-shadow: 0 0 10px #0ff; }
+        .profile-rank { font-size: 0.8rem; color: #ffd700; z-index: 1; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+        .profile-stats { display: flex; gap: 10px; z-index: 1; background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 20px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); }
+
+        /* Рамки */
+        .frame-rank { border: 4px solid #cd7f32 !important; box-shadow: 0 0 15px #cd7f32, inset 0 0 10px #cd7f32 !important; }
+        .frame-rank .frame-badge { border-color: #cd7f32; box-shadow: 0 0 15px #cd7f32; color: #cd7f32; }
+        .frame-silver { border: 4px solid #c0c0c0 !important; box-shadow: 0 0 25px #c0c0c0, inset 0 0 15px #c0c0c0 !important; }
+        .frame-silver .frame-badge { border-color: #c0c0c0; box-shadow: 0 0 20px #c0c0c0; color: #c0c0c0; }
+        .frame-legendary { border: 4px solid #ffd700 !important; box-shadow: 0 0 25px #ffd700, inset 0 0 15px #ffd700 !important; }
+        .frame-legendary .frame-badge { border-color: #ffd700; box-shadow: 0 0 20px #ffd700; color: #ffd700; }
+        .frame-diamond { border: 4px solid #00ffff !important; box-shadow: 0 0 25px #00ffff, inset 0 0 15px #00ffff !important; }
+        .frame-diamond .frame-badge { border-color: #00ffff; box-shadow: 0 0 20px #00ffff; color: #00ffff; }
+        .frame-mythic { border: 4px solid #ff00ff !important; box-shadow: 0 0 30px #ff00ff, inset 0 0 20px #ff00ff !important; }
+        .frame-mythic .frame-badge { border-color: #ff00ff; box-shadow: 0 0 25px #ff00ff; color: #ff00ff; }
+        .frame-emerald { border: 4px solid #00ff00 !important; box-shadow: 0 0 25px #00ff00, inset 0 0 15px #00ff00 !important; }
+        .frame-emerald .frame-badge { border-color: #00ff00; box-shadow: 0 0 20px #00ff00; color: #00ff00; }
+        .frame-ruby { border: 4px solid #ff0000 !important; box-shadow: 0 0 25px #ff0000, inset 0 0 15px #ff0000 !important; }
+        .frame-ruby .frame-badge { border-color: #ff0000; box-shadow: 0 0 20px #ff0000; color: #ff0000; }
+        .frame-sapphire { border: 4px solid #0000ff !important; box-shadow: 0 0 25px #0000ff, inset 0 0 15px #0000ff !important; }
+        .frame-sapphire .frame-badge { border-color: #0000ff; box-shadow: 0 0 20px #0000ff; color: #0000ff; }
+        .frame-plasma { border: 4px solid #00ffff !important; box-shadow: 0 0 30px #00ffff, inset 0 0 20px #ff00ff !important; border-style: double !important; }
+        .frame-plasma .frame-badge { border-color: #00ffff; box-shadow: 0 0 20px #ff00ff; color: #00ffff; }
+        .frame-void { border: 4px solid #4b0082 !important; box-shadow: 0 0 30px #4b0082, inset 0 0 20px #000 !important; }
+        .frame-void .frame-badge { border-color: #4b0082; box-shadow: 0 0 20px #4b0082; color: #4b0082; }
+        .frame-ice { border: 4px solid #87ceeb !important; box-shadow: 0 0 25px #87ceeb, inset 0 0 15px #87ceeb !important; }
+        .frame-ice .frame-badge { border-color: #87ceeb; box-shadow: 0 0 20px #87ceeb; color: #87ceeb; }
+        .frame-fire { border: 4px solid #ff4500 !important; box-shadow: 0 0 25px #ff4500, inset 0 0 15px #ff4500 !important; }
+        .frame-fire .frame-badge { border-color: #ff4500; box-shadow: 0 0 20px #ff4500; color: #ff4500; }
+        .frame-earth { border: 4px solid #8b4513 !important; box-shadow: 0 0 25px #8b4513, inset 0 0 15px #8b4513 !important; }
+        .frame-earth .frame-badge { border-color: #8b4513; box-shadow: 0 0 20px #8b4513; color: #8b4513; }
+        .frame-wind { border: 4px solid #d3d3d3 !important; box-shadow: 0 0 25px #d3d3d3, inset 0 0 15px #d3d3d3 !important; border-style: dotted !important; }
+        .frame-wind .frame-badge { border-color: #d3d3d3; box-shadow: 0 0 20px #d3d3d3; color: #d3d3d3; }
+        .frame-light { border: 4px solid #fffacd !important; box-shadow: 0 0 25px #fffacd, inset 0 0 15px #fffacd !important; }
+        .frame-light .frame-badge { border-color: #fffacd; box-shadow: 0 0 20px #fffacd; color: #fffacd; }
+        .frame-dark { border: 4px solid #1a1a1a !important; box-shadow: 0 0 25px #1a1a1a, inset 0 0 15px #1a1a1a !important; }
+        .frame-dark .frame-badge { border-color: #1a1a1a; box-shadow: 0 0 20px #1a1a1a; color: #1a1a1a; }
+        .frame-water { border: 4px solid #00bfff !important; box-shadow: 0 0 25px #00bfff, inset 0 0 15px #00bfff !important; }
+        .frame-water .frame-badge { border-color: #00bfff; box-shadow: 0 0 20px #00bfff; color: #00bfff; }
+        .frame-nature { border: 4px solid #228b22 !important; box-shadow: 0 0 25px #228b22, inset 0 0 15px #228b22 !important; }
+        .frame-nature .frame-badge { border-color: #228b22; box-shadow: 0 0 20px #228b22; color: #228b22; }
+        .frame-storm { border: 4px solid #4b0082 !important; box-shadow: 0 0 25px #4b0082, inset 0 0 15px #4b0082 !important; border-style: dashed !important; }
+        .frame-storm .frame-badge { border-color: #4b0082; box-shadow: 0 0 20px #4b0082; color: #4b0082; }
+        .frame-star { border: 4px solid #ffd700 !important; box-shadow: 0 0 25px #ffd700, inset 0 0 15px #ffd700 !important; border-style: double !important; }
+        .frame-star .frame-badge { border-color: #ffd700; box-shadow: 0 0 20px #ffd700; color: #ffd700; }
+        .frame-gold { border: 4px solid #ffd700 !important; box-shadow: 0 0 30px #ffd700, inset 0 0 20px #ffd700 !important; border-style: ridge !important; }
+        .frame-gold .frame-badge { border-color: #ffd700; box-shadow: 0 0 25px #ffd700; color: #ffd700; }
+        .frame-crystal { border: 4px solid #e0ffff !important; box-shadow: 0 0 30px #e0ffff, inset 0 0 20px #e0ffff !important; }
+        .frame-crystal .frame-badge { border-color: #e0ffff; box-shadow: 0 0 25px #e0ffff; color: #e0ffff; }
+        .frame-obsidian { border: 4px solid #2f2f2f !important; box-shadow: 0 0 30px #2f2f2f, inset 0 0 20px #2f2f2f !important; }
+        .frame-obsidian .frame-badge { border-color: #2f2f2f; box-shadow: 0 0 25px #2f2f2f; color: #2f2f2f; }
+        .frame-magma { border: 4px solid #ff4500 !important; box-shadow: 0 0 30px #ff4500, inset 0 0 20px #ff4500 !important; border-style: dashed !important; }
+        .frame-magma .frame-badge { border-color: #ff4500; box-shadow: 0 0 25px #ff4500; color: #ff4500; }
+        .frame-aether { border: 4px solid #9370db !important; box-shadow: 0 0 30px #9370db, inset 0 0 20px #9370db !important; border-style: double !important; }
+        .frame-aether .frame-badge { border-color: #9370db; box-shadow: 0 0 25px #9370db; color: #9370db; }
+
+        /* Цвета ников */
+        .rainbow-text { background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff, #ff0000); background-size: 200% auto; color: transparent; -webkit-background-clip: text; background-clip: text; animation: rainbow-anim 3s linear infinite; }
+        .neon-blue-text { color: #0ff; text-shadow: 0 0 5px #0ff, 0 0 15px #0ff, 0 0 25px #0ff; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-pink-text { color: #f0f; text-shadow: 0 0 5px #f0f, 0 0 15px #f0f, 0 0 25px #f0f; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-green-text { color: #0f0; text-shadow: 0 0 5px #0f0, 0 0 15px #0f0, 0 0 25px #0f0; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-gold-text { color: #ffd700; text-shadow: 0 0 5px #ffd700, 0 0 15px #ffd700, 0 0 25px #ffd700; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-purple-text { color: #9d00ff; text-shadow: 0 0 5px #9d00ff, 0 0 15px #9d00ff, 0 0 25px #9d00ff; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-red-text { color: #ff0000; text-shadow: 0 0 5px #ff0000, 0 0 15px #ff0000, 0 0 25px #ff0000; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-orange-text { color: #ff8c00; text-shadow: 0 0 5px #ff8c00, 0 0 15px #ff8c00, 0 0 25px #ff8c00; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-cyan-text { color: #00ffff; text-shadow: 0 0 5px #00ffff, 0 0 15px #00ffff, 0 0 25px #00ffff; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-yellow-text { color: #ffff00; text-shadow: 0 0 5px #ffff00, 0 0 15px #ffff00, 0 0 25px #ffff00; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-white-text { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 15px #ffffff, 0 0 25px #ffffff; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-lime-text { color: #00ff00; text-shadow: 0 0 5px #00ff00, 0 0 15px #00ff00, 0 0 25px #00ff00; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-turquoise-text { color: #40e0d0; text-shadow: 0 0 5px #40e0d0, 0 0 15px #40e0d0, 0 0 25px #40e0d0; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-violet-text { color: #ee82ee; text-shadow: 0 0 5px #ee82ee, 0 0 15px #ee82ee, 0 0 25px #ee82ee; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-maroon-text { color: #800000; text-shadow: 0 0 5px #800000, 0 0 15px #800000, 0 0 25px #800000; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-silver-text { color: #c0c0c0; text-shadow: 0 0 5px #c0c0c0, 0 0 15px #c0c0c0, 0 0 25px #c0c0c0; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-darkgreen-text { color: #006400; text-shadow: 0 0 5px #006400, 0 0 15px #006400, 0 0 25px #006400; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-platinum-text { color: #e5e4e2; text-shadow: 0 0 5px #e5e4e2, 0 0 15px #e5e4e2, 0 0 25px #e5e4e2; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-peach-text { color: #ffdab9; text-shadow: 0 0 5px #ffdab9, 0 0 15px #ffdab9, 0 0 25px #ffdab9; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-ice-text { color: #e0ffff; text-shadow: 0 0 5px #e0ffff, 0 0 15px #e0ffff, 0 0 25px #e0ffff; animation: pulse-anim 1.5s infinite alternate; }
+        .neon-bronze-text { color: #cd7f32; text-shadow: 0 0 5px #cd7f32, 0 0 15px #cd7f32, 0 0 25px #cd7f32; animation: pulse-anim 1.5s infinite alternate; }
+        .dark-blue-title { color: #000080; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 5px #00f, 0 0 10px #00f; }
+
+        .animated-banner { background-size: 200% 200% !important; animation: gradient-move 3s linear infinite; }
+        @keyframes gradient-move { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        @keyframes rainbow-anim { to { background-position: 200% center; } }
+        @keyframes pulse-anim { 0% { opacity: 0.8; } 100% { opacity: 1; filter: brightness(1.5); } }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="loading-logo">NEON FLAPPY</div>
+        <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+        <div class="loading-hint">Загрузка...</div>
+    </div>
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Авторизация -->
+    <div class="screen" id="authScreen">
+        <div class="auth-box">
+            <h2 id="authTitle">Вход</h2>
+            <input type="text" id="nickname" placeholder="Ваш Никнейм (логин)">
+            <input type="password" id="password" placeholder="Пароль (мин. 6 символов)">
+            <button class="auth-btn" id="authActionBtn">Войти</button>
+            <div class="auth-switch" id="authSwitch">Нет аккаунта? <span>Регистрация</span></div>
+            <div id="authError" style="color: #ff3366; font-size: 0.8rem; text-align: center;"></div>
+        </div>
+    </div>
+
+    <!-- Игра -->
+    <div class="screen" id="gameScreen">
+        <div class="menu">
+            <button class="menu-btn" id="myProfileBtn">Профиль</button>
+            <button class="menu-btn" id="leaderboardBtn">Лидеры</button>
+            <button class="menu-btn" id="friendsBtn">Друзья</button>
+            <button class="menu-btn" id="shopBtn">Магазин</button>
+            <button class="menu-btn" id="supportBtn">Помощь</button>
+            <button class="menu-btn admin" id="adminBtn" style="display:none;">Админка</button>
+            <button class="menu-btn" id="logoutBtn" style="color: #ff3366;">Выйти</button>
+        </div>
+
+        <div class="game-topbar">
+            <div class="game-badge badge-score">🏁 <span id="runScore">0</span></div>
+            <div class="game-badge badge-best">🏆 <span id="bestScore">0</span></div>
+            <div class="game-badge badge-total">💰 <span id="totalCoins">0</span></div>
+        </div>
+
+        <div class="game-wrap">
+            <div class="flappy-stage" id="flappyStage">
+                <canvas class="flappy-canvas" id="flappyCanvas"></canvas>
+                <div class="flappy-overlay" id="flappyOverlay">
+                    <h2 id="overlayTitle">ГОТОВ?</h2>
+                    <p id="overlayText">Тапай по экрану, чтобы птица летела</p>
+                    <div class="big-score" id="overlayScore" style="display:none;">0</div>
+                    <button class="flappy-start-btn" id="flappyStartBtn">ИГРАТЬ</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="level-badge" id="clickValueLabel">+1 монета за трубу</div>
+        <div class="rank-badge" id="rankBadge">🧴 Новичок</div>
+
+        <div class="upgrade-panel">
+            <div class="panel-label">Множитель монет: <b id="nextUpgradeCost">4</b></div>
+            <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
+            <button class="upgrade-btn" id="upgradeBtn" disabled>Улучшить</button>
+            <div class="level-badge" id="levelBadge">УРОВЕНЬ 1 · +1</div>
+        </div>
+
+        <div class="passive-panel">
+            <div class="panel-label">Пассивный доход: <b id="passiveIncomeDisplay">+0 / 2 сек</b></div>
+            <button class="passive-btn" id="upgradePassiveBtn" disabled>Улучшить пассив (10)</button>
+        </div>
+    </div>
+
+    <!-- Друзья -->
+    <div class="screen" id="friendsScreen">
+        <div class="friends-box">
+            <h3>👥 ДРУЗЬЯ</h3>
+            <div style="display:flex; gap:5px; margin-bottom:10px;">
+                <input type="text" id="friendSearchInput" placeholder="Введите ник друга..." style="flex:1; padding:8px; border-radius:8px; background:rgba(0,0,0,0.5); border:1px solid #0ff; color:white; outline:none;">
+                <button class="action-btn" id="searchFriendBtn">Найти</button>
+            </div>
+            <div id="searchResult" style="margin-bottom: 10px;"></div>
+            <h4 style="color:#ffd700; font-size:0.8rem; text-transform:uppercase; text-align:left; width:100%;">Мои друзья:</h4>
+            <div class="friends-list" id="myFriendsList"></div>
+            <h4 style="color:#f0f; font-size:0.8rem; text-transform:uppercase; text-align:left; width:100%; margin-top:10px;">Запросы:</h4>
+            <div class="friends-list" id="friendRequestsList"></div>
+            <button class="close-btn" id="closeFriendsBtn">Назад</button>
+        </div>
+    </div>
+
+    <!-- Чат -->
+    <div class="screen" id="chatScreen">
+        <div class="chat-box">
+            <h3 id="chatTitle">Чат</h3>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Написать сообщение...">
+                <button class="action-btn" id="sendChatBtn">➤</button>
+            </div>
+            <button class="close-btn" id="closeChatBtn">Назад</button>
+        </div>
+    </div>
+
+    <!-- Поддержка -->
+    <div class="screen" id="supportScreen">
+        <div class="support-box">
+            <h3>🛠 ТЕХПОДДЕРЖКА</h3>
+            <div id="ticketsList" style="max-height: 200px; overflow-y: auto;"></div>
+            <textarea id="ticketMessage" placeholder="Опишите вашу проблему..."></textarea>
+            <button class="action-btn" id="sendTicketBtn" style="width:100%; padding:10px;">Отправить запрос</button>
+            <button class="close-btn" id="closeSupportBtn">Назад</button>
+        </div>
+    </div>
+
+    <!-- Админка -->
+    <div class="screen" id="adminScreen">
+        <div class="admin-box">
+            <h3>🛡 АДМИН-ПАНЕЛЬ</h3>
+            <div class="admin-list" id="adminList"></div>
+            <button class="close-btn" id="closeAdminBtn">Назад</button>
+        </div>
+    </div>
+
+    <!-- Магазин -->
+    <div class="screen" id="shopScreen">
+        <div class="shop-box">
+            <h3>🛒 МАГАЗИН</h3>
+            <div class="shop-tabs" id="shopTabs"></div>
+            <div class="shop-list" id="shopList"></div>
+            <button class="close-btn" id="closeShopBtn">Назад</button>
+        </div>
+    </div>
+
+    <!-- Лидеры -->
+    <div class="screen" id="leaderboardScreen">
+        <div class="leaderboard-box">
+            <h3>🏆 ТОП МИРА 🏆</h3>
+            <button class="refresh-btn" id="refreshLeaderboardBtn">🔄 Обновить данные</button>
+            <div class="leader-list" id="leaderboardList"></div>
+            <button class="close-btn" id="closeLeaderboardBtn">Назад</button>
+        </div>
+    </div>
+
+    <!-- Профиль -->
+    <div class="screen" id="profileScreen">
+        <div class="profile-box" id="profileBox">
+            <div class="frame-badge" id="profileFrameBadge"></div>
+            <div class="profile-banner" id="profileBanner"></div>
+            <div class="profile-avatar" id="profileAvatar">👤</div>
+            <div class="profile-name-wrapper">
+                <div class="profile-name" id="profileName">Никнейм</div>
+                <div class="profile-pin" id="profilePin"></div>
+            </div>
+            <div class="profile-rank" id="profileRank">Ранг</div>
+            <div class="profile-stats">
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem; color:#aaa;">ПОБЕДЫ</div>
+                    <div style="font-weight:bold; color:#0ff; font-size:1.2rem;" id="profileWins">0</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.7rem; color:#aaa;">МОНЕТЫ</div>
+                    <div style="font-weight:bold; color:#ffd700; font-size:1.2rem;" id="profileScore">0</div>
+                </div>
+            </div>
+            <button class="action-btn" id="addFriendBtn" style="z-index:1; margin-bottom:5px; display:none;">Добавить в друзья</button>
+            <button class="action-btn" id="chatWithFriendBtn" style="z-index:1; margin-bottom:10px; display:none; background:#0ff; color:#000;">Написать в чат</button>
+            <button class="close-btn" id="closeProfileBtn">Назад</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, limit, getDocs, where, addDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAPGT5JIMsbUsuKVvJ3ZJKjaBQFllPE3YM",
+            authDomain: "neon-flappy-c311e.firebaseapp.com",
+            projectId: "neon-flappy-c311e",
+            storageBucket: "neon-flappy-c311e.firebasestorage.app",
+            messagingSenderId: "840491438266",
+            appId: "1:840491438266:web:72a35bcf9e95fb3c1ef283"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const loading = document.getElementById('loading');
+        const screens = document.querySelectorAll('.screen');
+        const authScreen = document.getElementById('authScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const shopScreen = document.getElementById('shopScreen');
+        const leaderboardScreen = document.getElementById('leaderboardScreen');
+        const profileScreen = document.getElementById('profileScreen');
+        const friendsScreen = document.getElementById('friendsScreen');
+        const chatScreen = document.getElementById('chatScreen');
+        const supportScreen = document.getElementById('supportScreen');
+        const adminScreen = document.getElementById('adminScreen');
+
+        const nicknameInput = document.getElementById('nickname');
+        const passwordInput = document.getElementById('password');
+        const authTitle = document.getElementById('authTitle');
+        const authActionBtn = document.getElementById('authActionBtn');
+        const authSwitch = document.getElementById('authSwitch');
+        const authError = document.getElementById('authError');
+
+        const runScoreEl = document.getElementById('runScore');
+        const bestScoreEl = document.getElementById('bestScore');
+        const totalCoinsEl = document.getElementById('totalCoins');
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        const nextUpgradeCostEl = document.getElementById('nextUpgradeCost');
+        const progressBar = document.getElementById('progressBar');
+        const levelBadge = document.getElementById('levelBadge');
+        const clickValueLabel = document.getElementById('clickValueLabel');
+        const rankBadge = document.getElementById('rankBadge');
+        const passiveIncomeDisplay = document.getElementById('passiveIncomeDisplay');
+        const upgradePassiveBtn = document.getElementById('upgradePassiveBtn');
+
+        const shopList = document.getElementById('shopList');
+        const shopTabs = document.getElementById('shopTabs');
+        const leaderboardList = document.getElementById('leaderboardList');
+        const myFriendsList = document.getElementById('myFriendsList');
+        const friendRequestsList = document.getElementById('friendRequestsList');
+        const searchResult = document.getElementById('searchResult');
+        const ticketsList = document.getElementById('ticketsList');
+        const adminList = document.getElementById('adminList');
+        const chatTitle = document.getElementById('chatTitle');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendChatBtn = document.getElementById('sendChatBtn');
+
+        let viewingProfileUid = null;
+        let passiveInterval = null;
+        let currentChatRoomId = null;
+        let chatUnsubscribe = null;
+        let currentShopCategory = 'avatar';
+
+        // ====== FLAPPY GAME STATE ======
+        const flappyStage = document.getElementById('flappyStage');
+        const flappyCanvas = document.getElementById('flappyCanvas');
+        const fctx = flappyCanvas.getContext('2d');
+        const flappyOverlay = document.getElementById('flappyOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayText = document.getElementById('overlayText');
+        const overlayScore = document.getElementById('overlayScore');
+        const flappyStartBtn = document.getElementById('flappyStartBtn');
+
+        const GAME = {
+            running: false, over: false, started: false,
+            W: 0, H: 0,
+            bird: { x: 0, y: 0, vy: 0, r: 14, rot: 0 },
+            pipes: [], score: 0, best: 0,
+            gravity: 0.42, jump: -7.4, speed: 2.4,
+            pipeW: 60, gap: 150, spawnGap: 220, frame: 0,
+            coinsThisRun: 0
+        };
+
+        function resizeFlappy() {
+            const rect = flappyStage.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            flappyCanvas.width = rect.width * dpr;
+            flappyCanvas.height = rect.height * dpr;
+            fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            GAME.W = rect.width;
+            GAME.H = rect.height;
+            if (!GAME.started) resetBirdPos();
+        }
+        window.addEventListener('resize', resizeFlappy);
+
+        function resetBirdPos() {
+            GAME.bird.x = GAME.W * 0.28;
+            GAME.bird.y = GAME.H / 2;
+            GAME.bird.vy = 0;
+            GAME.bird.rot = 0;
+        }
+
+        function resetGame() {
+            GAME.pipes = [];
+            GAME.score = 0;
+            GAME.coinsThisRun = 0;
+            GAME.frame = 0;
+            GAME.over = false;
+            GAME.running = false;
+            GAME.started = false;
+            resetBirdPos();
+            runScoreEl.textContent = '0';
+            drawFlappy();
+        }
+
+        function startGame() {
+            resetGame();
+            GAME.started = true;
+            GAME.running = true;
+            flappyOverlay.classList.add('hidden');
+            gameLoop();
+        }
+
+        function gameOver() {
+            if (GAME.over) return;
+            GAME.over = true;
+            GAME.running = false;
+            if (GAME.score > GAME.best) GAME.best = GAME.score;
+            bestScoreEl.textContent = GAME.best;
+
+            // Начисляем монеты
+            const earned = GAME.score * userData.clicksPerClick;
+            if (GAME.score > 0 && currentUser && !userData.banned) {
+                userData.score += earned;
+                saveToCloud(true); // Принудительное сохранение монет
+            }
+            updateUI();
+
+            overlayTitle.textContent = 'ИГРА ОКОНЧЕНА';
+            overlayText.textContent = earned > 0 ? `Побед: +${GAME.score} | Монет: +${earned}` : 'Попробуй ещё раз!';
+            overlayScore.style.display = 'block';
+            overlayScore.textContent = GAME.score;
+            flappyStartBtn.textContent = 'ЕЩЁ РАЗ';
+            flappyOverlay.classList.remove('hidden');
+        }
+
+        function flap() {
+            if (!GAME.running) return;
+            GAME.bird.vy = GAME.jump;
+        }
+
+        flappyStage.addEventListener('pointerdown', (e) => {
+            if (e.target === flappyStartBtn) return;
+            if (!GAME.started) { startGame(); return; }
+            if (GAME.over) return;
+            flap();
+        });
+        flappyStartBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && gameScreen.classList.contains('active')) {
+                e.preventDefault();
+                if (GAME.over || !GAME.started) startGame();
+                else flap();
+            }
+        });
+
+        function spawnPipe() {
+            const margin = 50;
+            const gap = GAME.gap;
+            const topH = margin + Math.random() * (GAME.H - gap - margin * 2);
+            GAME.pipes.push({ x: GAME.W + 10, topH, scored: false });
+        }
+
+        function updateFlappy() {
+            if (!GAME.running) return;
+            GAME.frame++;
+            const b = GAME.bird;
+            b.vy += GAME.gravity;
+            b.y += b.vy;
+            b.rot = Math.max(-0.6, Math.min(1.2, b.vy / 12));
+
+            if (b.y + b.r >= GAME.H - 10 || b.y - b.r <= 0) {
+                gameOver();
+                return;
+            }
+
+            if (GAME.pipes.length === 0 || GAME.pipes[GAME.pipes.length - 1].x < GAME.W - GAME.spawnGap) {
+                spawnPipe();
+            }
+
+            for (let i = GAME.pipes.length - 1; i >= 0; i--) {
+                const p = GAME.pipes[i];
+                p.x -= GAME.speed;
+                if (p.x + GAME.pipeW < 0) { GAME.pipes.splice(i, 1); continue; }
+                
+                const bx = b.x, by = b.y, r = b.r;
+                if (bx + r > p.x && bx - r < p.x + GAME.pipeW) {
+                    if (by - r < p.topH || by + r > p.topH + GAME.gap) {
+                        gameOver();
+                        return;
+                    }
+                }
+                
+                if (!p.scored && p.x + GAME.pipeW < b.x) {
+                    p.scored = true;
+                    GAME.score++;
+                    userData.wins++; // Увеличиваем кубки прямо во время игры
+                    saveToCloud(true); // Сохраняем кубки в базу СРАЗУ при пролете трубы
+                    runScoreEl.textContent = GAME.score;
+                    createParticles(b.x, b.y, 12);
+                }
+            }
+        }
+
+        function drawFlappy() {
+            const W = GAME.W, H = GAME.H;
+            const sky = fctx.createLinearGradient(0, 0, 0, H);
+            sky.addColorStop(0, '#001a33');
+            sky.addColorStop(0.4, '#003a66');
+            sky.addColorStop(0.7, '#0066cc');
+            sky.addColorStop(1, '#003a66');
+            fctx.fillStyle = sky;
+            fctx.fillRect(0, 0, W, H);
+
+            for (let i = 0; i < 40; i++) {
+                const sx = (i * 97 + GAME.frame * 0.3) % W;
+                const sy = (i * 53) % (H * 0.6);
+                fctx.fillStyle = 'rgba(255,255,255,' + (0.3 + (i % 3) * 0.2) + ')';
+                fctx.fillRect(sx, sy, 1.5, 1.5);
+            }
+
+            GAME.pipes.forEach(p => {
+                const grad = fctx.createLinearGradient(p.x, 0, p.x + GAME.pipeW, 0);
+                grad.addColorStop(0, '#00ff88');
+                grad.addColorStop(0.5, '#00aa55');
+                grad.addColorStop(1, '#006633');
+                fctx.fillStyle = grad;
+                fctx.shadowColor = '#00ff88';
+                fctx.shadowBlur = 12;
+                fctx.fillRect(p.x, 0, GAME.pipeW, p.topH);
+                fctx.fillRect(p.x - 4, p.topH - 20, GAME.pipeW + 8, 20);
+                const bottomY = p.topH + GAME.gap;
+                fctx.fillRect(p.x, bottomY, GAME.pipeW, H - bottomY);
+                fctx.fillRect(p.x - 4, bottomY, GAME.pipeW + 8, 20);
+                fctx.shadowBlur = 0;
+            });
+
+            fctx.fillStyle = '#003a2a';
+            fctx.fillRect(0, H - 10, W, 10);
+
+            const b = GAME.bird;
+            fctx.save();
+            fctx.translate(b.x, b.y);
+            fctx.rotate(b.rot);
+            fctx.shadowColor = '#ffd700';
+            fctx.shadowBlur = 20;
+            fctx.fillStyle = '#ffd700';
+            fctx.beginPath();
+            fctx.arc(0, 0, b.r, 0, Math.PI * 2);
+            fctx.fill();
+            fctx.shadowBlur = 0;
+            fctx.fillStyle = '#000';
+            fctx.beginPath();
+            fctx.arc(b.r * 0.35, -b.r * 0.3, b.r * 0.25, 0, Math.PI * 2);
+            fctx.fill();
+            fctx.fillStyle = '#fff';
+            fctx.beginPath();
+            fctx.arc(b.r * 0.42, -b.r * 0.35, b.r * 0.1, 0, Math.PI * 2);
+            fctx.fill();
+            fctx.fillStyle = '#ff6600';
+            fctx.beginPath();
+            fctx.moveTo(b.r * 0.8, -2);
+            fctx.lineTo(b.r * 1.6, 2);
+            fctx.lineTo(b.r * 0.8, 6);
+            fctx.closePath();
+            fctx.fill();
+            fctx.restore();
+        }
+
+        function gameLoop() {
+            if (!GAME.running) { drawFlappy(); return; }
+            updateFlappy();
+            drawFlappy();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // === КОНЕЦ FLAPPY ===
+
+        const allGifts = {
+            "click10k": { type: "clicks", amount: 10000, name: "10 000 монет" },
+            "click100k": { type: "clicks", amount: 100000, name: "100 000 монет" },
+            "avatar_unicorn": { type: "avatar", itemId: "avatar12", name: "Аватарка Единорог" },
+            "avatar_dragon": { type: "avatar", itemId: "avatar7", name: "Аватарка Дракон" },
+            "frame_gold": { type: "frame", itemId: "frame_gold", name: "Золотая Рамка" },
+            "frame_crystal": { type: "frame", itemId: "frame_crystal", name: "Кристальная Рамка" },
+            "frame_water": { type: "frame", itemId: "frame_water", name: "Водяная Рамка" },
+            "pin_crown": { type: "pin", itemId: "pin2", name: "Пин Корона" },
+            "banner_rainbow": { type: "banner", itemId: "banner21", name: "Баннер Радуга" }
+        };
+
+        const BOX_COST = 3500;
+        const lootBoxPool = [
+            { type: 'clicks', amount: 500, name: '500 монет', chance: 30 },
+            { type: 'clicks', amount: 1500, name: '1 500 монет', chance: 15 },
+            { type: 'clicks', amount: 5000, name: '5 000 монет', chance: 5 },
+            { type: 'avatar', itemId: 'avatar2', name: 'Аватарка Котик', chance: 5 },
+            { type: 'avatar', itemId: 'avatar3', name: 'Аватарка Пришелец', chance: 5 },
+            { type: 'avatar', itemId: 'avatar9', name: 'Аватарка Лис', chance: 5 },
+            { type: 'avatar', itemId: 'avatar4', name: 'Аватарка Робот', chance: 4 },
+            { type: 'avatar', itemId: 'avatar10', name: 'Аватарка Панда', chance: 3 },
+            { type: 'avatar', itemId: 'avatar11', name: 'Аватарка Лев', chance: 2 },
+            { type: 'avatar', itemId: 'avatar12', name: 'Аватарка Единорог', chance: 1 },
+            { type: 'frame', itemId: 'frame_silver', name: 'Серебряная Рамка', chance: 1 },
+            { type: 'frame', itemId: 'frame_ice', name: 'Ледяная Рамка', chance: 0.8 },
+            { type: 'frame', itemId: 'frame_water', name: 'Водяная Рамка', chance: 0.5 },
+            { type: 'frame', itemId: 'frame_fire', name: 'Огненная Рамка', chance: 0.4 },
+            { type: 'frame', itemId: 'frame_gold', name: 'Золотая Рамка', chance: 0.2 },
+            { type: 'frame', itemId: 'frame_crystal', name: 'Кристальная Рамка', chance: 0.1 },
+            { type: 'pin', itemId: 'pin1', name: 'Пин Огонь', chance: 4 },
+            { type: 'pin', itemId: 'pin4', name: 'Пин Звезда', chance: 4 },
+            { type: 'pin', itemId: 'pin5', name: 'Пин Сердце', chance: 2 },
+            { type: 'pin', itemId: 'pin2', name: 'Пин Корона', chance: 1.5 },
+            { type: 'pin', itemId: 'pin3', name: 'Пин Череп', chance: 0.5 },
+            { type: 'banner', itemId: 'banner2', name: 'Баннер Неон', chance: 3 },
+            { type: 'banner', itemId: 'banner9', name: 'Баннер Волна', chance: 3 },
+            { type: 'banner', itemId: 'banner3', name: 'Баннер Огненный', chance: 2 },
+            { type: 'banner', itemId: 'banner21', name: 'Баннер Радуга', chance: 1 },
+            { type: 'banner', itemId: 'banner6', name: 'Баннер Космос', chance: 1 }
+        ];
+
+        const allTitles = [
+            { id: 'lvl_1', icon: '🧴', name: 'Новичок', requiredLevel: 1 },
+            { id: 'lvl_100', icon: '🛡️', name: 'Боец', requiredLevel: 100 },
+            { id: 'lvl_200', icon: '⚔️', name: 'Профи', requiredLevel: 200 },
+            { id: 'lvl_300', icon: '💎', name: 'Эксперт', requiredLevel: 300 },
+            { id: 'lvl_400', icon: '🗡️', name: 'Ветеран', requiredLevel: 400 },
+            { id: 'lvl_500', icon: '🔥', name: 'Мастер', requiredLevel: 500 },
+            { id: 'lvl_600', icon: '⚡', name: 'Полубог', requiredLevel: 600 },
+            { id: 'lvl_700', icon: '🔮', name: 'Архимаг', requiredLevel: 700 },
+            { id: 'lvl_800', icon: '🚀', name: 'Грандмастер', requiredLevel: 800 },
+            { id: 'lvl_900', icon: '🌌', name: 'Легенда', requiredLevel: 900 },
+            { id: 'lvl_1000', icon: '👑', name: 'Бог', requiredLevel: 1000 },
+            
+            { id: 'title1', icon: '♾️', name: 'Бесконечность не предел', price: 2500 },
+            { id: 'title2', icon: '🤱', name: 'Твоя мамка', price: 2500 },
+            { id: 'title3', icon: '📦', name: 'Мега ящик', price: 2500 },
+            { id: 'title4', icon: '🃏', name: 'Джокер', price: 2500 },
+            { id: 'title5', icon: '🗿', name: 'Титан кликов', price: 2500 },
+            { id: 'title6', icon: '6️⃣7️⃣', name: 'Сикс севен', price: 2500 },
+            { id: 'title7', icon: '🙏', name: 'Мать Тереза', price: 2500 },
+            { id: 'title8', icon: '😎', name: 'Красавчик', price: 2500 },
+            { id: 'title9', icon: '⏱️', name: 'Watch Man of Doom', price: 2500 },
+            { id: 'title10', icon: '📅', name: '2023', price: 2500 },
+            { id: 'title11', icon: '🥭', name: 'Манго', price: 2500 },
+            { id: 'title12', icon: '🎰', name: 'Читер 777', price: 2500 },
+            { id: 'title13', icon: '🦾', name: "I'm Iron Man", price: 2500 },
+            { id: 'title14', icon: '👸', name: 'Сама непобедимость', price: 2500 },
+            { id: 'title15', icon: '🚀', name: 'Топ пушер', price: 4000, isDarkBlue: true },
+            { id: 'title16', icon: '🚫', name: 'Не меняй своё имя', price: 4000, isDarkBlue: true },
+            { id: 'title17', icon: '🏆', name: 'Топ 1', price: 4000, isDarkBlue: true },
+            { id: 'title18', icon: '🖤', name: 'Дед инсайд', price: 4000, isDarkBlue: true },
+            { id: 'title19', icon: '💻', name: 'Вайбкодер', price: 4000, isDarkBlue: true },
+            { id: 'title20', icon: '📱', name: 'Зависимый от телефона', price: 4000, isDarkBlue: true },
+            { id: 'title21', icon: '⏱️', name: 'Спидран 1 млрд', price: 4000, isDarkBlue: true },
+            { id: 'title22', icon: '🦏', name: 'Броненосец', price: 2500 },
+            { id: 'title23', icon: '👆', name: 'Тап темпер', price: 2500 },
+            { id: 'title24', icon: '🤓', name: 'Задрот', price: 2500 },
+            { id: 'title25', icon: '👩', name: 'Твоя мама лучшая', price: 4000, isDarkBlue: true },
+            { id: 'title26', icon: '⚫', name: 'Чёрный день', price: 4000, isDarkBlue: true },
+            { id: 'title27', icon: '👨', name: 'Батя мистера Макса', price: 4000, isDarkBlue: true },
+            { id: 'title28', icon: '🦾', name: 'Тони Старк собрал мини реактор', price: 4000, isDarkBlue: true },
+            { id: 'title29', icon: '🗣️', name: 'Нет такого слова не хочу', price: 4000, isDarkBlue: true },
+            { id: 'title30', icon: '🚜', name: 'Бульдозер', price: 2500 },
+            { id: 'title31', icon: '1️⃣', name: 'Один такой', price: 2500 },
+            { id: 'title32', icon: '🍬', name: 'Сладость или гадость', price: 2500 },
+            { id: 'title33', icon: '⚛️', name: 'Наноэнергетика', price: 2500 },
+            { id: 'title34', icon: '🕷️', name: 'Ты как человек паук!', price: 4000, isDarkBlue: true },
+            { id: 'title35', icon: '👦', name: 'Ровный поцанчик', price: 4000, isDarkBlue: true },
+            { id: 'title36', icon: '🚽', name: 'Б-р скибиди скибиди', price: 4000, isDarkBlue: true },
+            { id: 'title37', icon: '🤝', name: 'Тиммейты просто превосходны', price: 4000, isDarkBlue: true },
+            { id: 'title38', icon: '🌬️', name: 'Ветроэнергетика', price: 2500 },
+            { id: 'title39', icon: '🥈', name: 'Топ 2', price: 2500 },
+            { id: 'title40', icon: '🥉', name: 'Топ 3', price: 2500 },
+            { id: 'title41', icon: '😎', name: 'Крутость', price: 2500 },
+            { id: 'title42', icon: '💥', name: 'Кобяков топчик', price: 4000, isDarkBlue: true },
+            { id: 'title43', icon: '🕊️', name: 'Жизнь одна а стендофф 2', price: 4000, isDarkBlue: true },
+            { id: 'title44', icon: '⌚', name: 'Космические часики нарушили покой', price: 4000, isDarkBlue: true },
+            { id: 'title45', icon: '🧼', name: 'Помойся с мылом', price: 4000, isDarkBlue: true },
+            { id: 'title46', icon: '🌭', name: 'Сосиска', price: 2500 },
+            { id: 'title47', icon: '🤔', name: 'Какой расклад?', price: 2500 },
+            { id: 'title48', icon: '🌑', name: 'Порождение ночи', price: 2500 },
+            { id: 'title49', icon: '🫡', name: 'Всегда готов', price: 2500 },
+            { id: 'title50', icon: '💫', name: 'Особенный', price: 4000, isDarkBlue: true },
+            { id: 'title51', icon: '🎒', name: 'Что в мешочке?', price: 4000, isDarkBlue: true },
+            { id: 'title52', icon: '🧮', name: '2+2=5', price: 4000, isDarkBlue: true },
+            { id: 'title53', icon: '📺', name: 'Здесь могла быть ваша реклама', price: 2500 }
+        ];
+
+        const allFrames = [
+            { id: 'frame_rank', name: 'Рамка Ранга (Бронза) 🎁', price: 0, className: 'frame-rank', icon: '🥉' },
+            { id: 'frame_silver', name: 'Серебряная Рамка 🎁', price: 0, className: 'frame-silver', icon: '🥈' },
+            { id: 'frame_legendary', name: 'Легендарная Рамка', price: 4500, className: 'frame-legendary', icon: '🌟' },
+            { id: 'frame_diamond', name: 'Алмазная Рамка', price: 4500, className: 'frame-diamond', icon: '💎' },
+            { id: 'frame_mythic', name: 'Мифическая Рамка', price: 4500, className: 'frame-mythic', icon: '🔮' },
+            { id: 'frame_emerald', name: 'Изумрудная Рамка', price: 4500, className: 'frame-emerald', icon: '💚' },
+            { id: 'frame_ruby', name: 'Рубиновая Рамка', price: 4500, className: 'frame-ruby', icon: '❤️' },
+            { id: 'frame_sapphire', name: 'Сапфировая Рамка', price: 4500, className: 'frame-sapphire', icon: '💙' },
+            { id: 'frame_plasma', name: 'Плазменная Рамка', price: 4500, className: 'frame-plasma', icon: '⚡' },
+            { id: 'frame_void', name: 'Рамка Пустоты', price: 4500, className: 'frame-void', icon: '🕳️' },
+            { id: 'frame_ice', name: 'Ледяная Рамка', price: 4500, className: 'frame-ice', icon: '🧊' },
+            { id: 'frame_fire', name: 'Огненная Рамка', price: 4500, className: 'frame-fire', icon: '🔥' },
+            { id: 'frame_earth', name: 'Земляная Рамка', price: 4500, className: 'frame-earth', icon: '🌍' },
+            { id: 'frame_wind', name: 'Воздушная Рамка', price: 4500, className: 'frame-wind', icon: '🌪️' },
+            { id: 'frame_light', name: 'Светлая Рамка', price: 4500, className: 'frame-light', icon: '✨' },
+            { id: 'frame_dark', name: 'Тёмная Рамка', price: 4500, className: 'frame-dark', icon: '🖤' },
+            { id: 'frame_water', name: 'Водяная Рамка', price: 4500, className: 'frame-water', icon: '🌊' },
+            { id: 'frame_nature', name: 'Природная Рамка', price: 4500, className: 'frame-nature', icon: '🌿' },
+            { id: 'frame_storm', name: 'Штормовая Рамка', price: 4500, className: 'frame-storm', icon: '⛈️' },
+            { id: 'frame_star', name: 'Звёздная Рамка', price: 4500, className: 'frame-star', icon: '⭐' },
+            { id: 'frame_gold', name: 'Золотая Рамка', price: 4500, className: 'frame-gold', icon: '🥇' },
+            { id: 'frame_crystal', name: 'Кристальная Рамка', price: 4500, className: 'frame-crystal', icon: '🔷' },
+            { id: 'frame_obsidian', name: 'Обсидиановая Рамка', price: 4500, className: 'frame-obsidian', icon: '⬛' },
+            { id: 'frame_magma', name: 'Магмовая Рамка', price: 4500, className: 'frame-magma', icon: '🌋' },
+            { id: 'frame_aether', name: 'Эфирная Рамка', price: 4500, className: 'frame-aether', icon: '🔮' }
+        ];
+
+        const allColors = [
+            { id: 'color_rainbow', name: 'Переливающийся (Радуга)', price: 4000, className: 'rainbow-text' },
+            { id: 'color_blue', name: 'Неоново-синий', price: 4000, className: 'neon-blue-text' },
+            { id: 'color_pink', name: 'Неоново-розовый', price: 4000, className: 'neon-pink-text' },
+            { id: 'color_green', name: 'Неоново-зеленый', price: 4000, className: 'neon-green-text' },
+            { id: 'color_gold', name: 'Неоново-золотой', price: 4000, className: 'neon-gold-text' },
+            { id: 'color_purple', name: 'Неоново-фиолетовый', price: 4000, className: 'neon-purple-text' },
+            { id: 'color_red', name: 'Неоново-красный', price: 4000, className: 'neon-red-text' },
+            { id: 'color_orange', name: 'Неоново-оранжевый', price: 4000, className: 'neon-orange-text' },
+            { id: 'color_cyan', name: 'Неоново-голубой', price: 4000, className: 'neon-cyan-text' },
+            { id: 'color_yellow', name: 'Неоново-желтый', price: 4000, className: 'neon-yellow-text' },
+            { id: 'color_white', name: 'Неоново-белый', price: 4000, className: 'neon-white-text' },
+            { id: 'color_lime', name: 'Неоново-лаймовый', price: 4000, className: 'neon-lime-text' },
+            { id: 'color_turquoise', name: 'Неоново-бирюзовый', price: 4000, className: 'neon-turquoise-text' },
+            { id: 'color_violet', name: 'Неоново-сиреневый', price: 4000, className: 'neon-violet-text' },
+            { id: 'color_maroon', name: 'Неоново-бордовый', price: 4000, className: 'neon-maroon-text' },
+            { id: 'color_silver', name: 'Неоново-серебряный', price: 4000, className: 'neon-silver-text' },
+            { id: 'color_darkgreen', name: 'Тёмно-зеленый неон', price: 4000, className: 'neon-darkgreen-text' },
+            { id: 'color_platinum', name: 'Платиновый неон', price: 4000, className: 'neon-platinum-text' },
+            { id: 'color_peach', name: 'Персиковый неон', price: 4000, className: 'neon-peach-text' },
+            { id: 'color_ice', name: 'Ледяной неон', price: 4000, className: 'neon-ice-text' },
+            { id: 'color_bronze', name: 'Бронзовый неон', price: 4000, className: 'neon-bronze-text' }
+        ];
+
+        const allPins = [
+            { id: 'pin1', name: 'Огонь', icon: '🔥', price: 2000 },
+            { id: 'pin2', name: 'Корона', icon: '👑', price: 2000 },
+            { id: 'pin3', name: 'Череп', icon: '💀', price: 2000 },
+            { id: 'pin4', name: 'Звезда', icon: '⭐', price: 2000 },
+            { id: 'pin5', name: 'Сердце', icon: '❤️', price: 2000 },
+            { id: 'pin6', name: 'Молния', icon: '⚡', price: 2000 },
+            { id: 'pin7', name: 'Алмаз', icon: '💎', price: 2000 },
+            { id: 'pin8', name: 'Меч', icon: '⚔️', price: 2000 },
+            { id: 'pin9', name: 'Щит', icon: '🛡️', price: 2000 },
+            { id: 'pin10', name: 'Крылья', icon: '🕊️', price: 2000 },
+            { id: 'pin11', name: 'Кошка', icon: '🐱', price: 2000 },
+            { id: 'pin12', name: 'Собака', icon: '🐶', price: 2000 },
+            { id: 'pin13', name: 'Ракета', icon: '🚀', price: 2000 },
+            { id: 'pin14', name: 'Книга', icon: '📚', price: 2000 },
+            { id: 'pin15', name: 'Гитара', icon: '🎸', price: 2000 }
+        ];
+
+        const shopItems = [
+            { id: 'avatar1', type: 'avatar', icon: '👤', name: 'Новичок', price: 0 },
+            { id: 'avatar2', type: 'avatar', icon: '🐱', name: 'Котик', price: 3500 },
+            { id: 'avatar3', type: 'avatar', icon: '👽', name: 'Пришелец', price: 3500 },
+            { id: 'avatar4', type: 'avatar', icon: '🤖', name: 'Кибер-робот', price: 3500 },
+            { id: 'avatar5', type: 'avatar', icon: '👑', name: 'Корона', price: 3500 },
+            { id: 'avatar6', type: 'avatar', icon: '🔥', name: 'Демон', price: 3500 },
+            { id: 'avatar7', type: 'avatar', icon: '🐉', name: 'Дракон', price: 3500 },
+            { id: 'avatar8', type: 'avatar', icon: '🌟', name: 'Суперзвезда', price: 3500 },
+            { id: 'avatar9', type: 'avatar', icon: '🦊', name: 'Хитрый лис', price: 3500 },
+            { id: 'avatar10', type: 'avatar', icon: '🐼', name: 'Панда', price: 3500 },
+            { id: 'avatar11', type: 'avatar', icon: '🦁', name: 'Лев', price: 3500 },
+            { id: 'avatar12', type: 'avatar', icon: '🦄', name: 'Единорог', price: 3500 },
+            { id: 'avatar13', type: 'avatar', icon: '👻', name: 'Призрак', price: 3500 },
+            { id: 'avatar14', type: 'avatar', icon: '👾', name: 'Пиксель', price: 3500 },
+            { id: 'avatar15', type: 'avatar', icon: '💀', name: 'Череп', price: 3500 },
+            { id: 'avatar16', type: 'avatar', icon: '🌌', name: 'Космос', price: 3500 },
+            { id: 'avatar17', type: 'avatar', icon: '🐸', name: 'Жаба', price: 3500 },
+            { id: 'avatar18', type: 'avatar', icon: '🦉', name: 'Сова', price: 3500 },
+            { id: 'avatar19', type: 'avatar', icon: '🦈', name: 'Акула', price: 3500 },
+            { id: 'avatar20', type: 'avatar', icon: '🐺', name: 'Волк', price: 3500 },
+            { id: 'avatar21', type: 'avatar', icon: '🍕', name: 'Пицца', price: 3500 },
+            { id: 'avatar22', type: 'avatar', icon: '🧊', name: 'Ледяной куб', price: 3500 },
+            { id: 'avatar23', type: 'avatar', icon: '🦖', name: 'Дино', price: 3500 },
+            { id: 'avatar24', type: 'avatar', icon: '🐢', name: 'Черепаха', price: 3500 },
+            { id: 'avatar25', type: 'avatar', icon: '🦋', name: 'Бабочка', price: 3500 },
+            { id: 'avatar26', type: 'avatar', icon: '🐙', name: 'Осьминог', price: 3500 },
+            { id: 'avatar27', type: 'avatar', icon: '🍩', name: 'Пончик', price: 3500 },
+            { id: 'avatar28', type: 'avatar', icon: '🎩', name: 'Цилиндр', price: 3500 },
+            { id: 'avatar29', type: 'avatar', icon: '⚡', name: 'Молния', price: 3500 },
+            { id: 'avatar30', type: 'avatar', icon: '🛸', name: 'НЛО', price: 3500 },
+            { id: 'avatar31', type: 'avatar', icon: '🥶', name: 'Замороженный', price: 3500 },
+            { id: 'avatar32', type: 'avatar', icon: '🤡', name: 'Клоун', price: 3500 },
+            { id: 'avatar33', type: 'avatar', icon: '😈', name: 'Чертик', price: 3500 },
+            { id: 'avatar34', type: 'avatar', icon: '🥷', name: 'Ниндзя', price: 3500 },
+            { id: 'avatar35', type: 'avatar', icon: '🦅', name: 'Орел', price: 3500 },
+            { id: 'avatar36', type: 'avatar', icon: '🍔', name: 'Бургер', price: 3500 },
+            { id: 'avatar37', type: 'avatar', icon: '🤠', name: 'Ковбой', price: 3500 },
+            { id: 'avatar38', type: 'avatar', icon: '🦆', name: 'Утка', price: 3500 },
+            { id: 'avatar39', type: 'avatar', icon: '🦩', name: 'Фламинго', price: 3500 },
+            { id: 'avatar40', type: 'avatar', icon: '🦥', name: 'Ленивец', price: 3500 },
+            { id: 'avatar41', type: 'avatar', icon: '🦔', name: 'Ежик', price: 3500 },
+            { id: 'avatar42', type: 'avatar', icon: '🦦', name: 'Выдра', price: 3500 },
+            { id: 'avatar43', type: 'avatar', icon: '🦭', name: 'Тюлень', price: 3500 },
+            { id: 'avatar44', type: 'avatar', icon: '🦚', name: 'Павлин', price: 3500 },
+            { id: 'avatar45', type: 'avatar', icon: '🦜', name: 'Попугай', price: 3500 },
+            { id: 'avatar46', type: 'avatar', icon: '🐲', name: 'Китайский дракон', price: 3500 },
+            { id: 'avatar47', type: 'avatar', icon: '🧸', name: 'Мишка', price: 3500 },
+            { id: 'avatar48', type: 'avatar', icon: '🦮', name: 'Собака', price: 3500 },
+            { id: 'avatar49', type: 'avatar', icon: '🐹', name: 'Хомяк', price: 3500 },
+            { id: 'avatar50', type: 'avatar', icon: '🦌', name: 'Олень', price: 3500 },
+            { id: 'avatar51', type: 'avatar', icon: '🐳', name: 'Кит', price: 3500 },
+            { id: 'avatar52', type: 'avatar', icon: '🦂', name: 'Скорпион', price: 3500 },
+
+            { id: 'banner1', type: 'banner', icon: '⬛', name: 'Стандартный', price: 0, style: 'linear-gradient(90deg, #111, #333)' },
+            { id: 'banner2', type: 'banner', icon: '💙', name: 'Неон', price: 2000, style: 'linear-gradient(90deg, #0ff, #f0f)' },
+            { id: 'banner3', type: 'banner', icon: '🔥', name: 'Огненный', price: 2000, style: 'linear-gradient(90deg, #f00, #ff0)' },
+            { id: 'banner4', type: 'banner', icon: '💜', name: 'Фиолетовый', price: 2000, style: 'linear-gradient(90deg, #800080, #ff00ff)' },
+            { id: 'banner5', type: 'banner', icon: '💎', name: 'Алмазный', price: 2000, style: 'linear-gradient(90deg, #0ff, #fff, #0ff)' },
+            { id: 'banner6', type: 'banner', icon: '🌌', name: 'Космос', price: 2000, style: 'radial-gradient(circle, #000 20%, #220044 80%)' },
+            { id: 'banner7', type: 'banner', icon: '☢️', name: 'Радиация', price: 2000, style: 'linear-gradient(90deg, #00ff00, #003300)' },
+            { id: 'banner8', type: 'banner', icon: '⚡', name: 'Гроза', price: 2000, style: 'linear-gradient(90deg, #000, #0ff, #000)' },
+            { id: 'banner9', type: 'banner', icon: '🌊', name: 'Волна', price: 2000, style: 'linear-gradient(135deg, #00f, #0ff, #00f)' },
+            { id: 'banner10', type: 'banner', icon: '🌅', name: 'Закат', price: 2000, style: 'linear-gradient(90deg, #ff8c00, #ff0080)' },
+            { id: 'banner11', type: 'banner', icon: '🍀', name: 'Удача', price: 2000, style: 'linear-gradient(90deg, #0f0, #ff0)' },
+            { id: 'banner12', type: 'banner', icon: '❄️', name: 'Лёд', price: 2000, style: 'linear-gradient(90deg, #e0ffff, #00bfff, #e0ffff)' },
+            { id: 'banner13', type: 'banner', icon: '🌋', name: 'Вулкан', price: 2000, style: 'linear-gradient(90deg, #300, #f00, #300)' },
+            { id: 'banner14', type: 'banner', icon: '🪐', name: 'Сатурн', price: 2000, style: 'radial-gradient(circle, #ffd700 10%, #8b4513 40%, #000 70%)' },
+            { id: 'banner15', type: 'banner', icon: '🩸', name: 'Кровавый', price: 2000, style: 'linear-gradient(90deg, #000, #800000, #000)' },
+            { id: 'banner16', type: 'banner', icon: '🌿', name: 'Природа', price: 2000, style: 'linear-gradient(90deg, #004d00, #00ff00, #004d00)' },
+            { id: 'banner17', type: 'banner', icon: '🌇', name: 'Мегаполис', price: 2000, style: 'linear-gradient(180deg, #ff8c00, #4b0082)' },
+            { id: 'banner18', type: 'banner', icon: '👑', name: 'Золотой', price: 2000, style: 'linear-gradient(90deg, #ffd700, #b8860b, #ffd700)' },
+            { id: 'banner19', type: 'banner', icon: '🌸', name: 'Сакура', price: 2000, style: 'linear-gradient(90deg, #ffb7c5, #ff69b4, #ffb7c5)' },
+            { id: 'banner20', type: 'banner', icon: '🕳️', name: 'Чёрная дыра', price: 2000, style: 'radial-gradient(circle, #000 40%, #4b0082 80%, #000 100%)' },
+            { id: 'banner31', type: 'banner', icon: '🌑', name: 'Луна', price: 2000, style: 'radial-gradient(circle, #ddd 20%, #555 80%)' },
+            { id: 'banner32', type: 'banner', icon: '🏙️', name: 'Город', price: 2000, style: 'linear-gradient(180deg, #000, #555, #000)' },
+            { id: 'banner33', type: 'banner', icon: '🍭', name: 'Конфета', price: 2000, style: 'linear-gradient(45deg, #ff0, #f0f, #0ff, #ff0)' },
+            { id: 'banner34', type: 'banner', icon: '🌲', name: 'Лес', price: 2000, style: 'linear-gradient(180deg, #003300, #006600, #003300)' },
+            { id: 'banner35', type: 'banner', icon: '🧨', name: 'Взрыв', price: 2000, style: 'radial-gradient(circle, #ff0 10%, #f00 50%, #000 90%)' },
+            { id: 'banner41', type: 'banner', icon: '🛸', name: 'Инопланетный', price: 2000, style: 'linear-gradient(90deg, #00ff00, #000000, #00ff00)' },
+            { id: 'banner42', type: 'banner', icon: '⚓', name: 'Морской', price: 2000, style: 'linear-gradient(180deg, #000080, #00ffff, #000080)' },
+            { id: 'banner43', type: 'banner', icon: '🔥', name: 'Тёмное пламя', price: 2000, style: 'linear-gradient(90deg, #000, #ff0000, #000)' },
+            { id: 'banner44', type: 'banner', icon: '🩷', name: 'Розовый рай', price: 2000, style: 'linear-gradient(90deg, #ff69b4, #ff1493, #ff69b4)' },
+            { id: 'banner45', type: 'banner', icon: '🥇', name: 'Победитель', price: 2000, style: 'linear-gradient(90deg, #ffd700, #ffffff, #ffd700)' },
+            { id: 'banner51', type: 'banner', icon: '🌌', name: 'Галактика', price: 2000, style: 'linear-gradient(45deg, #000, #4b0082, #000)' },
+            { id: 'banner52', type: 'banner', icon: '🌈', name: 'Радужный', price: 2000, style: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff)' },
+            { id: 'banner53', type: 'banner', icon: '🌌', name: 'Туманность', price: 2000, style: 'radial-gradient(circle, #ff69b4 10%, #8a2be2 50%, #000 90%)' },
+            { id: 'banner54', type: 'banner', icon: '🔮', name: 'Магия', price: 2000, style: 'linear-gradient(90deg, #8a2be2, #4b0082, #8a2be2)' },
+            { id: 'banner55', type: 'banner', icon: '🌠', name: 'Комета', price: 2000, style: 'linear-gradient(90deg, #00f, #fff, #00f)' },
+            { id: 'banner61', type: 'banner', icon: '🏜️', name: 'Пустыня', price: 2000, style: 'linear-gradient(180deg, #ffd700, #ff8c00, #ffd700)' },
+            { id: 'banner62', type: 'banner', icon: '🌊', name: 'Глубина', price: 2000, style: 'linear-gradient(180deg, #000080, #191970, #000080)' },
+            { id: 'banner63', type: 'banner', icon: '🍄', name: 'Грибной', price: 2000, style: 'linear-gradient(90deg, #ff0000, #ffffff, #ff0000)' },
+            { id: 'banner64', type: 'banner', icon: '🌌', name: 'Червоточина', price: 2000, style: 'radial-gradient(circle, #4b0082 10%, #000 70%)' },
+            { id: 'banner65', type: 'banner', icon: '🌋', name: 'Извержение', price: 2000, style: 'linear-gradient(180deg, #ff4500, #8b0000, #ff4500)' },
+            
+            { id: 'banner21', type: 'banner', icon: '🌈', name: 'Переливающаяся Радуга', price: 4000, style: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff, #ff0000)', isAnimated: true },
+            { id: 'banner22', type: 'banner', icon: '🌊', name: 'Переливающаяся Волна', price: 4000, style: 'linear-gradient(90deg, #00f, #0ff, #00f, #0ff, #00f)', isAnimated: true },
+            { id: 'banner23', type: 'banner', icon: '🔥', name: 'Переливающееся Пламя', price: 4000, style: 'linear-gradient(90deg, #f00, #ff8c00, #ff0, #f00)', isAnimated: true },
+            { id: 'banner24', type: 'banner', icon: '❄️', name: 'Переливающийся Лёд', price: 4000, style: 'linear-gradient(90deg, #e0ffff, #00bfff, #e0ffff, #00bfff)', isAnimated: true },
+            { id: 'banner25', type: 'banner', icon: '🍀', name: 'Переливающаяся Удача', price: 4000, style: 'linear-gradient(90deg, #0f0, #ff0, #0f0, #ff0)', isAnimated: true },
+            { id: 'banner26', type: 'banner', icon: '🌌', name: 'Переливающийся Космос', price: 4000, style: 'linear-gradient(90deg, #000, #220044, #000, #220044)', isAnimated: true },
+            { id: 'banner27', type: 'banner', icon: '💖', name: 'Переливающаяся Любовь', price: 4000, style: 'linear-gradient(90deg, #f0f, #f00, #f0f, #f00)', isAnimated: true },
+            { id: 'banner28', type: 'banner', icon: '💎', name: 'Переливающийся Алмаз', price: 4000, style: 'linear-gradient(90deg, #0ff, #fff, #0ff, #fff)', isAnimated: true },
+            { id: 'banner29', type: 'banner', icon: '☢️', name: 'Переливающаяся Радиация', price: 4000, style: 'linear-gradient(90deg, #00ff00, #003300, #00ff00, #003300)', isAnimated: true },
+            { id: 'banner30', type: 'banner', icon: '⚡', name: 'Переливающаяся Гроза', price: 4000, style: 'linear-gradient(90deg, #000, #0ff, #000, #0ff)', isAnimated: true },
+            { id: 'banner36', type: 'banner', icon: '🌪️', name: 'Переливающийся Вихрь', price: 4000, style: 'linear-gradient(90deg, #555, #fff, #555, #fff)', isAnimated: true },
+            { id: 'banner37', type: 'banner', icon: '🌠', name: 'Переливающаяся Комета', price: 4000, style: 'linear-gradient(90deg, #00f, #fff, #00f, #fff)', isAnimated: true },
+            { id: 'banner38', type: 'banner', icon: '🌺', name: 'Переливающийся Цветок', price: 4000, style: 'linear-gradient(90deg, #ff1493, #ff69b4, #ff1493, #ff69b4)', isAnimated: true },
+            { id: 'banner39', type: 'banner', icon: '🪄', name: 'Переливающаяся Магия', price: 4000, style: 'linear-gradient(90deg, #8a2be2, #4b0082, #8a2be2, #4b0082)', isAnimated: true },
+            { id: 'banner40', type: 'banner', icon: '🔱', name: 'Переливающийся Трезубец', price: 4000, style: 'linear-gradient(90deg, #00ffff, #00008b, #00ffff, #00008b)', isAnimated: true },
+            { id: 'banner46', type: 'banner', icon: '💫', name: 'Переливающаяся Звезда', price: 4000, style: 'linear-gradient(90deg, #ff0, #fff, #ff0, #fff)', isAnimated: true },
+            { id: 'banner47', type: 'banner', icon: '🩸', name: 'Переливающаяся Кровь', price: 4000, style: 'linear-gradient(90deg, #800000, #ff0000, #800000, #ff0000)', isAnimated: true },
+            { id: 'banner48', type: 'banner', icon: '🌫️', name: 'Переливающийся Туман', price: 4000, style: 'linear-gradient(90deg, #aaa, #fff, #aaa, #fff)', isAnimated: true },
+            { id: 'banner49', type: 'banner', icon: '🪐', name: 'Переливающийся Сатурн', price: 4000, style: 'linear-gradient(90deg, #8b4513, #ffd700, #8b4513, #ffd700)', isAnimated: true },
+            { id: 'banner50', type: 'banner', icon: '🌱', name: 'Переливающийся Росток', price: 4000, style: 'linear-gradient(90deg, #00ff00, #90ee90, #00ff00, #90ee90)', isAnimated: true },
+            { id: 'banner56', type: 'banner', icon: '🌌', name: 'Переливающаяся Галактика', price: 4000, style: 'linear-gradient(90deg, #000, #4b0082, #000, #4b0082)', isAnimated: true },
+            { id: 'banner57', type: 'banner', icon: '🔮', name: 'Переливающаяся Магия', price: 4000, style: 'linear-gradient(90deg, #8a2be2, #4b0082, #8a2be2, #4b0082)', isAnimated: true },
+            { id: 'banner58', type: 'banner', icon: '🌠', name: 'Переливающаяся Комета', price: 4000, style: 'linear-gradient(90deg, #00f, #fff, #00f, #fff)', isAnimated: true },
+            { id: 'banner59', type: 'banner', icon: '🌋', name: 'Переливающийся Вулкан', price: 4000, style: 'linear-gradient(90deg, #300, #f00, #300, #f00)', isAnimated: true },
+            { id: 'banner60', type: 'banner', icon: '🌊', name: 'Переливающийся Океан', price: 4000, style: 'linear-gradient(90deg, #000080, #00ffff, #000080, #00ffff)', isAnimated: true },
+            { id: 'banner66', type: 'banner', icon: '🌅', name: 'Переливающийся Рассвет', price: 4000, style: 'linear-gradient(90deg, #ff8c00, #ff0080, #ff8c00, #ff0080)', isAnimated: true },
+            { id: 'banner67', type: 'banner', icon: '🌌', name: 'Переливающийся Млечный Путь', price: 4000, style: 'linear-gradient(90deg, #191970, #483d8b, #191970, #483d8b)', isAnimated: true },
+            { id: 'banner68', type: 'banner', icon: '🔮', name: 'Переливающийся Кристалл', price: 4000, style: 'linear-gradient(90deg, #e0ffff, #00ffff, #e0ffff, #00ffff)', isAnimated: true },
+            { id: 'banner69', type: 'banner', icon: '🌪️', name: 'Переливающийся Смерч', price: 4000, style: 'linear-gradient(90deg, #696969, #d3d3d3, #696969, #d3d3d3)', isAnimated: true },
+            { id: 'banner70', type: 'banner', icon: '🔥', name: 'Переливающийся Ад', price: 4000, style: 'linear-gradient(90deg, #8b0000, #ff0000, #8b0000, #ff0000)', isAnimated: true }
+        ];
+
+        let isLoginMode = true;
+        let currentUser = null;
+        let isAdmin = false;
+        let userData = {
+            score: 0, wins: 0, clicksPerClick: 1, level: 1, upgradeCost: 4, nickname: '', banned: false,
+            avatar: '👤', banner: 'linear-gradient(90deg, #111, #333)',
+            customTitle: '', customColor: '', customFrame: 'frame-rank', customPin: '',
+            inventory: ['avatar1', 'banner1', 'frame_rank'],
+            friends: [], passiveMultiplier: 1, passiveUpgradeCost: 10,
+            lastLogoutTime: 0, usedGifts: []
+        };
+
+        function getDefaultTitle(wins) {
+            const t = allTitles.filter(t => t.requiredLevel > 0 && t.requiredLevel <= wins).pop();
+            return t ? `${t.icon} ${t.name.toUpperCase()}` : '🧴 НОВИЧОК';
+        }
+        function getDisplayTitle(wins, customTitle) { return customTitle || getDefaultTitle(wins); }
+
+        authSwitch.addEventListener('click', () => {
+            isLoginMode = !isLoginMode;
+            authTitle.textContent = isLoginMode ? 'Вход' : 'Регистрация';
+            authActionBtn.textContent = isLoginMode ? 'Войти' : 'Создать аккаунт';
+            authSwitch.innerHTML = isLoginMode ? 'Нет аккаунта? <span>Регистрация</span>' : 'Есть аккаунт? <span>Вход</span>';
+            authError.textContent = '';
+        });
+
+        authActionBtn.addEventListener('click', async () => {
+            const nick = nicknameInput.value.trim();
+            const pass = passwordInput.value;
+            if (nick.length < 3) return authError.textContent = 'Ник должен быть от 3 символов';
+            if (pass.length < 6) return authError.textContent = 'Пароль должен быть от 6 символов';
+            const cleanNick = nick.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (cleanNick.length < 3) return authError.textContent = 'Ник должен содержать хотя бы 3 латинские буквы/цифры';
+            const fakeEmail = `${cleanNick}@neonflappy.com`;
+
+            authActionBtn.disabled = true;
+            authError.textContent = '';
+            try {
+                if (isLoginMode) {
+                    await signInWithEmailAndPassword(auth, fakeEmail, pass);
+                } else {
+                    const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, pass);
+                    await setDoc(doc(db, "users", userCredential.user.uid), {
+                        nickname: nick, score: 0, wins: 0, clicksPerClick: 1, level: 1, upgradeCost: 4, banned: false,
+                        avatar: '👤', banner: 'linear-gradient(90deg, #111, #333)', customTitle: '', customColor: '',
+                        customFrame: 'frame-rank', customPin: '',
+                        inventory: ['avatar1', 'banner1', 'frame_rank', 'frame_silver'],
+                        friends: [], passiveMultiplier: 1, passiveUpgradeCost: 10,
+                        lastLogoutTime: Date.now(), usedGifts: []
+                    });
+                }
+            } catch (error) {
+                if (error.code === 'auth/email-already-in-use') authError.textContent = 'Этот ник уже занят';
+                else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') authError.textContent = 'Неверный ник или пароль';
+                else authError.textContent = 'Ошибка: ' + error.message;
+            } finally { authActionBtn.disabled = false; }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await saveToCloud(true, true);
+            signOut(auth);
+        });
+
+        onAuthStateChanged(auth, async (user) => {
+            loading.classList.add('fade-out');
+            setTimeout(() => { loading.style.display = 'none'; }, 500);
+            resizeFlappy();
+
+            if (user) {
+                currentUser = user;
+                const adminDoc = await getDoc(doc(db, "admins", user.uid));
+                isAdmin = adminDoc.exists();
+                document.getElementById('adminBtn').style.display = isAdmin ? 'block' : 'none';
+
+                const docSnap = await getDoc(doc(db, "users", user.uid));
+                if (docSnap.exists()) {
+                    const cloudData = docSnap.data();
+                    if (cloudData.banned) {
+                        alert("Ваш аккаунт заблокирован администратором.");
+                        await signOut(auth);
+                        return;
+                    }
+                    userData = cloudData;
+                    if (!userData.wins) userData.wins = 0;
+                    if (!userData.inventory) userData.inventory = ['avatar1', 'banner1'];
+                    if (!userData.inventory.includes('frame_rank')) userData.inventory.push('frame_rank');
+                    if (!userData.inventory.includes('frame_silver')) userData.inventory.push('frame_silver');
+                    if (!userData.avatar) userData.avatar = '👤';
+                    if (!userData.banner) userData.banner = 'linear-gradient(90deg, #111, #333)';
+                    if (!userData.customTitle) userData.customTitle = '';
+                    if (!userData.customColor) userData.customColor = '';
+                    if (!userData.customFrame) userData.customFrame = 'frame-rank';
+                    if (!userData.customPin) userData.customPin = '';
+                    if (!userData.friends) userData.friends = [];
+                    if (!userData.passiveMultiplier) userData.passiveMultiplier = 1;
+                    if (!userData.passiveUpgradeCost) userData.passiveUpgradeCost = 10;
+                    if (!userData.lastLogoutTime) userData.lastLogoutTime = Date.now();
+                    if (!userData.usedGifts) userData.usedGifts = [];
+
+                    calculateOfflineIncome();
+                    updateUI();
+                    startPassiveIncome();
+                    checkGiftLink();
+                    resetGame();
+                }
+                showScreen(gameScreen);
+                setTimeout(resizeFlappy, 100);
+            } else {
+                currentUser = null;
+                isAdmin = false;
+                document.getElementById('adminBtn').style.display = 'none';
+                if (passiveInterval) clearInterval(passiveInterval);
+                showScreen(authScreen);
+                passwordInput.value = '';
+            }
+        });
+
+        // Сохраняем прогресс, если игрок сворачивает вкладку или закрывает браузер
+        window.addEventListener('beforeunload', () => {
+            if (currentUser && !userData.banned) {
+                // Используем setDoc для гарантированной отправки при закрытии
+                const dataToSave = {
+                    score: Math.floor(userData.score), wins: userData.wins, clicksPerClick: userData.clicksPerClick,
+                    level: userData.level, upgradeCost: userData.upgradeCost,
+                    avatar: userData.avatar, banner: userData.banner,
+                    customTitle: userData.customTitle, customColor: userData.customColor,
+                    customFrame: userData.customFrame, customPin: userData.customPin,
+                    inventory: userData.inventory,
+                    passiveMultiplier: userData.passiveMultiplier,
+                    passiveUpgradeCost: userData.passiveUpgradeCost,
+                    lastLogoutTime: Date.now(),
+                    usedGifts: userData.usedGifts
+                };
+                // Не ждем ответа, чтобы браузер не блокировал закрытие
+                updateDoc(doc(db, "users", currentUser.uid), dataToSave);
+            }
+        });
+
+        function calculateOfflineIncome() {
+            const now = Date.now();
+            const offlineTimeMs = now - userData.lastLogoutTime;
+            const OFFLINE_LIMIT_MS = 24 * 60 * 60 * 1000;
+            const timeToCount = Math.min(offlineTimeMs, OFFLINE_LIMIT_MS);
+            if (timeToCount > 10000) {
+                const incomePer2Sec = userData.level * userData.passiveMultiplier;
+                const periods = Math.floor(timeToCount / 2000);
+                const offlineIncome = periods * incomePer2Sec;
+                if (offlineIncome > 0) {
+                    userData.score += offlineIncome;
+                    setTimeout(() => {
+                        alert(`С возвращением! Пока вас не было, вы заработали: ${offlineIncome} монет.`);
+                    }, 500);
+                }
+            }
+            userData.lastLogoutTime = now;
+        }
+
+        function showScreen(screen) {
+            screens.forEach(s => s.classList.remove('active'));
+            screen.classList.add('active');
+            if (screen === gameScreen) setTimeout(resizeFlappy, 50);
+        }
+
+        function updateUI() {
+            totalCoinsEl.textContent = Math.floor(userData.score);
+            levelBadge.textContent = `УРОВЕНЬ ${userData.level} · +${userData.clicksPerClick} за трубу`;
+            clickValueLabel.textContent = `+${userData.clicksPerClick} монета(ы) за трубу`;
+            rankBadge.textContent = getDisplayTitle(userData.wins, userData.customTitle);
+            
+            nextUpgradeCostEl.textContent = userData.upgradeCost;
+
+            const canUpgrade = userData.score >= userData.upgradeCost;
+            upgradeBtn.disabled = !canUpgrade;
+            upgradeBtn.textContent = canUpgrade ? `Улучшить (${userData.upgradeCost})` : `Нужно ${userData.upgradeCost}`;
+            progressBar.style.width = (Math.min(userData.score, userData.upgradeCost) / userData.upgradeCost * 100) + '%';
+
+            const passiveIncome = userData.level * userData.passiveMultiplier;
+            passiveIncomeDisplay.textContent = `+${passiveIncome} / 2 сек`;
+            const canUpgradePassive = userData.score >= userData.passiveUpgradeCost;
+            upgradePassiveBtn.disabled = !canUpgradePassive;
+            upgradePassiveBtn.textContent = canUpgradePassive ? `Улучшить пассив (${userData.passiveUpgradeCost})` : `Нужно ${userData.passiveUpgradeCost}`;
+        }
+
+        let saveTimeout;
+        function saveToCloud(immediate = false, isLogout = false) {
+            if (!currentUser || userData.banned) return;
+            const performSave = async () => {
+                try {
+                    const dataToSave = {
+                        score: Math.floor(userData.score), wins: userData.wins, clicksPerClick: userData.clicksPerClick,
+                        level: userData.level, upgradeCost: userData.upgradeCost,
+                        avatar: userData.avatar, banner: userData.banner,
+                        customTitle: userData.customTitle, customColor: userData.customColor,
+                        customFrame: userData.customFrame, customPin: userData.customPin,
+                        inventory: userData.inventory,
+                        passiveMultiplier: userData.passiveMultiplier,
+                        passiveUpgradeCost: userData.passiveUpgradeCost,
+                        usedGifts: userData.usedGifts
+                    };
+                    if (isLogout) dataToSave.lastLogoutTime = Date.now();
+                    await updateDoc(doc(db, "users", currentUser.uid), dataToSave);
+                } catch (e) { console.error("Ошибка сохранения:", e); }
+            };
+            clearTimeout(saveTimeout);
+            if (immediate) performSave(); else saveTimeout = setTimeout(performSave, 2000);
+        }
+
+        function startPassiveIncome() {
+            if (passiveInterval) clearInterval(passiveInterval);
+            passiveInterval = setInterval(() => {
+                if (!currentUser || userData.banned) return;
+                const income = userData.level * userData.passiveMultiplier;
+                if (income > 0) {
+                    userData.score += income;
+                    updateUI();
+                    saveToCloud();
+                }
+            }, 2000);
+        }
+
+        upgradePassiveBtn.addEventListener('click', () => {
+            if (!currentUser || userData.banned || userData.score < userData.passiveUpgradeCost) return;
+            userData.score -= userData.passiveUpgradeCost;
+            userData.passiveMultiplier += 1;
+            userData.passiveUpgradeCost *= 2;
+            updateUI(); saveToCloud(true);
+            createParticles(window.innerWidth / 2, window.innerHeight / 2, 40, true);
+        });
+
+        upgradeBtn.addEventListener('click', () => {
+            if (!currentUser || userData.banned || userData.score < userData.upgradeCost) return;
+            userData.score -= userData.upgradeCost;
+            userData.level += 1; userData.clicksPerClick = userData.level;
+            userData.upgradeCost = Math.floor(userData.upgradeCost * 1.5);
+            updateUI(); saveToCloud(true);
+            createParticles(window.innerWidth / 2, window.innerHeight / 2, 40, true);
+        });
+
+        async function checkGiftLink() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const giftId = urlParams.get('gift');
+            if (giftId && allGifts[giftId]) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                if (userData.usedGifts && userData.usedGifts.includes(giftId)) {
+                    alert('❌ Вы уже активировали этот подарок!');
+                    return;
+                }
+                const gift = allGifts[giftId];
+                let successMessage = '';
+                if (gift.type === 'clicks') {
+                    userData.score += gift.amount;
+                    successMessage = `🎁 Подарок активирован! Вы получили ${gift.amount} монет!`;
+                } else if (gift.type === 'avatar' || gift.type === 'frame' || gift.type === 'banner' || gift.type === 'pin') {
+                    if (!userData.inventory.includes(gift.itemId)) {
+                        userData.inventory.push(gift.itemId);
+                        successMessage = `🎁 Подарок активирован! Вы получили "${gift.name}"!`;
+                    } else {
+                        successMessage = `🎁 Вы уже имеете "${gift.name}", но подарок засчитан!`;
+                    }
+                }
+                if (!userData.usedGifts) userData.usedGifts = [];
+                userData.usedGifts.push(giftId);
+                updateUI(); saveToCloud(true);
+                setTimeout(() => alert(successMessage), 500);
+            }
+        }
+
+        function openLootBox() {
+            if (!currentUser || userData.score < BOX_COST) { alert('Недостаточно монет для покупки бокса!'); return; }
+            userData.score -= BOX_COST;
+            const totalChance = lootBoxPool.reduce((sum, item) => sum + item.chance, 0);
+            let random = Math.random() * totalChance;
+            let selectedItem = null;
+            for (const item of lootBoxPool) {
+                if (random < item.chance) { selectedItem = item; break; }
+                random -= item.chance;
+            }
+            if (!selectedItem) selectedItem = lootBoxPool[0];
+            let dropMessage = `🎁 Бокс открыт!\n\nВам выпало: ${selectedItem.name}`;
+            if (selectedItem.type === 'clicks') {
+                userData.score += selectedItem.amount;
+            } else {
+                if (!userData.inventory.includes(selectedItem.itemId)) userData.inventory.push(selectedItem.itemId);
+                else dropMessage += '\n\n(У вас уже есть этот предмет)';
+            }
+            updateUI(); saveToCloud(true); renderShopItems();
+            createParticles(window.innerWidth / 2, window.innerHeight / 2, 50, true);
+            setTimeout(() => alert(dropMessage), 300);
+        }
+
+        function buyPinPackage() {
+            const PIN_PACK_COST = 3000;
+            if (userData.score < PIN_PACK_COST) return alert('Недостаточно монет!');
+            userData.score -= PIN_PACK_COST;
+            const shuffledPins = [...allPins].sort(() => 0.5 - Math.random());
+            const droppedPins = shuffledPins.slice(0, 3);
+            let msg = '🎁 Пин-пакет открыт!\n\nВам выпали:\n';
+            droppedPins.forEach(pin => { if (!userData.inventory.includes(pin.id)) userData.inventory.push(pin.id); msg += `- ${pin.name} (${pin.icon})\n`; });
+            updateUI(); saveToCloud(true); renderShopItems();
+            createParticles(window.innerWidth / 2, window.innerHeight / 2, 60, true);
+            setTimeout(() => alert(msg), 300);
+        }
+
+        function buyIconPackage() {
+            const ICON_PACK_COST = 3500;
+            if (userData.score < ICON_PACK_COST) return alert('Недостаточно монет!');
+            userData.score -= ICON_PACK_COST;
+            const avatars = shopItems.filter(i => i.type === 'avatar');
+            const shuffledAvatars = [...avatars].sort(() => 0.5 - Math.random());
+            const droppedAvatars = shuffledAvatars.slice(0, 3);
+            let msg = '🎁 Икон-пакет открыт!\n\nВам выпали:\n';
+            droppedAvatars.forEach(avatar => { if (!userData.inventory.includes(avatar.id)) userData.inventory.push(avatar.id); msg += `- ${avatar.name} (${avatar.icon})\n`; });
+            updateUI(); saveToCloud(true); renderShopItems();
+            createParticles(window.innerWidth / 2, window.innerHeight / 2, 60, true);
+            setTimeout(() => alert(msg), 300);
+        }
+
+        function openChat(friendUid) {
+            const roomId = [currentUser.uid, friendUid].sort().join('_');
+            currentChatRoomId = roomId;
+            showScreen(chatScreen);
+            chatMessages.innerHTML = '<div style="text-align:center; color:#aaa;">Загрузка сообщений...</div>';
+            if (chatUnsubscribe) chatUnsubscribe();
+            const q = query(collection(db, "chats", roomId, "messages"), orderBy("timestamp", "asc"), limit(100));
+            chatUnsubscribe = onSnapshot(q, (snapshot) => {
+                chatMessages.innerHTML = '';
+                if (snapshot.empty) {
+                    chatMessages.innerHTML = '<div style="text-align:center; color:#aaa;">Сообщений пока нет. Напишите первым!</div>';
+                } else {
+                    snapshot.forEach((doc) => {
+                        const msg = doc.data();
+                        const div = document.createElement('div');
+                        div.className = `chat-msg ${msg.sender === currentUser.uid ? 'self' : 'other'}`;
+                        div.textContent = msg.text;
+                        chatMessages.appendChild(div);
+                    });
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            });
+        }
+
+        document.getElementById('closeChatBtn').addEventListener('click', () => {
+            if (chatUnsubscribe) chatUnsubscribe();
+            currentChatRoomId = null;
+            showScreen(friendsScreen);
+        });
+
+        sendChatBtn.addEventListener('click', async () => {
+            const text = chatInput.value.trim();
+            if (!text || !currentChatRoomId) return;
+            chatInput.value = '';
+            try {
+                await addDoc(collection(db, "chats", currentChatRoomId, "messages"), {
+                    sender: currentUser.uid, text: text, timestamp: Date.now()
+                });
+            } catch (e) { alert('Ошибка отправки сообщения'); }
+        });
+        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatBtn.click(); });
+        document.getElementById('chatWithFriendBtn').addEventListener('click', () => { if (viewingProfileUid) openChat(viewingProfileUid); });
+
+        document.getElementById('friendsBtn').addEventListener('click', () => { loadFriends(); showScreen(friendsScreen); });
+        document.getElementById('closeFriendsBtn').addEventListener('click', () => showScreen(gameScreen));
+
+        async function loadFriends() {
+            myFriendsList.innerHTML = ''; friendRequestsList.innerHTML = '';
+            if (userData.friends && userData.friends.length > 0) {
+                for (const uid of userData.friends) {
+                    const fDoc = await getDoc(doc(db, "users", uid));
+                    if (fDoc.exists()) {
+                        const fData = fDoc.data();
+                        const div = document.createElement('div'); div.className = 'friend-item';
+                        const colorClass = fData.customColor || '';
+                        div.innerHTML = `<span>${fData.avatar || '👤'} <span class="${colorClass}">${fData.nickname}</span></span>`;
+                        const btnContainer = document.createElement('div');
+                        const chatBtn = document.createElement('button');
+                        chatBtn.className = 'action-btn'; chatBtn.textContent = 'Чат'; chatBtn.style.marginRight = '5px';
+                        chatBtn.onclick = () => openChat(uid);
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'action-btn danger'; delBtn.textContent = 'Удалить';
+                        delBtn.onclick = async () => {
+                            await updateDoc(doc(db, "users", currentUser.uid), { friends: arrayRemove(uid) });
+                            await updateDoc(doc(db, "users", uid), { friends: arrayRemove(currentUser.uid) });
+                            userData.friends = userData.friends.filter(id => id !== uid);
+                            loadFriends();
+                        };
+                        btnContainer.appendChild(chatBtn); btnContainer.appendChild(delBtn);
+                        div.appendChild(btnContainer); myFriendsList.appendChild(div);
+                    }
+                }
+            } else myFriendsList.innerHTML = '<div style="color:#aaa; font-size:0.8rem;">У вас пока нет друзей</div>';
+
+            const q = query(collection(db, "friendRequests"), where("to", "==", currentUser.uid));
+            const reqSnap = await getDocs(q);
+            if (reqSnap.empty) friendRequestsList.innerHTML = '<div style="color:#aaa; font-size:0.8rem;">Нет новых запросов</div>';
+            else {
+                for (const reqDoc of reqSnap.docs) {
+                    const reqData = reqDoc.data();
+                    const senderDoc = await getDoc(doc(db, "users", reqData.from));
+                    if (senderDoc.exists()) {
+                        const senderData = senderDoc.data();
+                        const div = document.createElement('div'); div.className = 'friend-item';
+                        const colorClass = senderData.customColor || '';
+                        div.innerHTML = `<span>${senderData.avatar} <span class="${colorClass}">${senderData.nickname}</span></span>`;
+                        const btnContainer = document.createElement('div');
+                        const accBtn = document.createElement('button');
+                        accBtn.className = 'action-btn'; accBtn.textContent = 'Принять'; accBtn.style.marginRight = '5px';
+                        accBtn.onclick = async () => {
+                            await updateDoc(doc(db, "users", currentUser.uid), { friends: arrayUnion(reqData.from) });
+                            await updateDoc(doc(db, "users", reqData.from), { friends: arrayUnion(currentUser.uid) });
+                            await deleteDoc(doc(db, "friendRequests", reqDoc.id));
+                            userData.friends.push(reqData.from);
+                            loadFriends();
+                        };
+                        const rejBtn = document.createElement('button');
+                        rejBtn.className = 'action-btn danger'; rejBtn.textContent = 'Отклонить';
+                        rejBtn.onclick = async () => { await deleteDoc(doc(db, "friendRequests", reqDoc.id)); loadFriends(); };
+                        btnContainer.appendChild(accBtn); btnContainer.appendChild(rejBtn);
+                        div.appendChild(btnContainer); friendRequestsList.appendChild(div);
+                    }
+                }
+            }
+        }
+
+        document.getElementById('searchFriendBtn').addEventListener('click', async () => {
+            const searchNick = document.getElementById('friendSearchInput').value.trim();
+            if (!searchNick) return;
+            searchResult.innerHTML = 'Поиск...';
+            const q = query(collection(db, "users"), where("nickname", "==", searchNick));
+            const snap = await getDocs(q);
+            if (snap.empty) { searchResult.innerHTML = '<div style="color:#ff3366; font-size:0.8rem;">Игрок не найден</div>'; return; }
+            const foundDoc = snap.docs[0]; const foundData = foundDoc.data(); const foundUid = foundDoc.id;
+            if (foundUid === currentUser.uid) { searchResult.innerHTML = '<div style="color:#ff3366; font-size:0.8rem;">Это вы!</div>'; return; }
+            if (userData.friends && userData.friends.includes(foundUid)) { searchResult.innerHTML = '<div style="color:#ffd700; font-size:0.8rem;">Этот игрок уже у вас в друзьях</div>'; return; }
+            const reqQuery = query(collection(db, "friendRequests"), where("from", "==", currentUser.uid), where("to", "==", foundUid));
+            const reqSnap = await getDocs(reqQuery);
+            searchResult.innerHTML = '';
+            const div = document.createElement('div'); div.className = 'friend-item';
+            const colorClass = foundData.customColor || '';
+            div.innerHTML = `<span>${foundData.avatar} <span class="${colorClass}">${foundData.nickname}</span></span>`;
+            const btn = document.createElement('button'); btn.className = 'action-btn';
+            if (!reqSnap.empty) { btn.textContent = 'Запрос отправлен'; btn.disabled = true; }
+            else {
+                btn.textContent = 'Добавить';
+                btn.onclick = async () => {
+                    await addDoc(collection(db, "friendRequests"), { from: currentUser.uid, to: foundUid, timestamp: Date.now() });
+                    btn.textContent = 'Запрос отправлен'; btn.disabled = true;
+                };
+            }
+            div.appendChild(btn); searchResult.appendChild(div);
+        });
+
+        document.getElementById('addFriendBtn').addEventListener('click', async () => {
+            if (!viewingProfileUid || viewingProfileUid === currentUser.uid) return;
+            const btn = document.getElementById('addFriendBtn'); btn.textContent = 'Отправка...'; btn.disabled = true;
+            try {
+                const reqQuery = query(collection(db, "friendRequests"), where("from", "==", currentUser.uid), where("to", "==", viewingProfileUid));
+                const reqSnap = await getDocs(reqQuery);
+                if (!reqSnap.empty) btn.textContent = 'Запрос уже отправлен';
+                else {
+                    await addDoc(collection(db, "friendRequests"), { from: currentUser.uid, to: viewingProfileUid, timestamp: Date.now() });
+                    btn.textContent = 'Запрос отправлен';
+                }
+            } catch(e) { btn.textContent = 'Ошибка'; btn.disabled = false; }
+        });
+
+        document.getElementById('adminBtn').addEventListener('click', () => { loadAdminPanel(); showScreen(adminScreen); });
+        document.getElementById('closeAdminBtn').addEventListener('click', () => showScreen(gameScreen));
+
+        async function loadAdminPanel() {
+            adminList.innerHTML = 'Загрузка...';
+            try {
+                const q = query(collection(db, "users"));
+                const snap = await getDocs(q, { source: 'server' });
+                adminList.innerHTML = '';
+                snap.forEach(docSnap => {
+                    const data = docSnap.data(); const uid = docSnap.id;
+                    const isBanned = data.banned === true;
+                    const div = document.createElement('div'); div.className = 'admin-item';
+                    const colorClass = data.customColor || '';
+                    div.innerHTML = `<div style="display:flex; flex-direction:column; width:100%;">
+                        <span style="font-weight:bold; font-size:1rem;"><span class="${colorClass}">${data.nickname || 'Игрок'}</span> ${isBanned ? '🚫 (Забанен)' : ''}</span>
+                        <span style="font-size:0.7rem; color:#aaa;">Ур. ${data.level || 1} · Монет: ${Math.floor(data.score || 0)}</span>
+                    </div>`;
+                    const btn = document.createElement('button');
+                    btn.className = `action-btn ${isBanned ? 'success' : 'danger'}`;
+                    btn.textContent = isBanned ? 'Разбанить' : 'Забанить';
+                    btn.style.width = '100%'; btn.style.marginTop = '5px';
+                    btn.onclick = async () => {
+                        btn.disabled = true; btn.textContent = '...';
+                        try { await updateDoc(doc(db, "users", uid), { banned: !isBanned }); loadAdminPanel(); }
+                        catch (e) { alert('Ошибка!'); btn.disabled = false; btn.textContent = isBanned ? 'Разбанить' : 'Забанить'; }
+                    };
+                    div.appendChild(btn); adminList.appendChild(div);
+                });
+                if (snap.empty) adminList.innerHTML = '<div style="text-align:center;">Нет игроков</div>';
+            } catch (e) { adminList.innerHTML = '<div style="text-align:center; color:red;">Ошибка загрузки</div>'; }
+        }
+
+        document.getElementById('supportBtn').addEventListener('click', () => { loadTickets(); showScreen(supportScreen); });
+        document.getElementById('closeSupportBtn').addEventListener('click', () => showScreen(gameScreen));
+
+        async function loadTickets() {
+            ticketsList.innerHTML = 'Загрузка...';
+            const q = query(collection(db, "tickets"), where("uid", "==", currentUser.uid));
+            const snap = await getDocs(q);
+            ticketsList.innerHTML = '';
+            if (snap.empty) { ticketsList.innerHTML = '<div style="color:#aaa; font-size:0.8rem; text-align:center; margin-bottom:10px;">У вас нет активных запросов</div>'; return; }
+            const sortedDocs = snap.docs.sort((a, b) => b.data().timestamp - a.data().timestamp);
+            sortedDocs.forEach(docSnap => {
+                const data = docSnap.data(); const date = new Date(data.timestamp).toLocaleString();
+                let html = `<div class="ticket-item"><div style="font-size:0.7rem; color:#aaa; margin-bottom:5px;">${date} · Статус: ${data.status === 'closed' ? '✅ Закрыт' : '⏳ В ожидании'}</div><div>${data.message}</div>`;
+                if (data.reply) html += `<div class="ticket-reply"><b>Ответ поддержки:</b><br>${data.reply}</div>`;
+                html += `</div>`; ticketsList.innerHTML += html;
+            });
+        }
+
+        document.getElementById('sendTicketBtn').addEventListener('click', async () => {
+            const msg = document.getElementById('ticketMessage').value.trim();
+            const lowerMsg = msg.toLowerCase();
+            if (!msg) return alert('Напишите сообщение!');
+            let autoReply = "Извините, я не понял ваш вопрос. Пожалуйста, опишите проблему подробнее или обратитесь к администратору.";
+            if (lowerMsg.includes("разбан") || lowerMsg.includes("разблокир")) {
+                const nickMatch = msg.match(/ник[:\s]+([a-zA-Z0-9_]+)/i);
+                if (!nickMatch) autoReply = "Для разбана напишите в формате: 'Разбан. Ник: [ваш_ник]. Код: [код]'.";
+                else {
+                    const targetNick = nickMatch[1].toLowerCase().trim();
+                    const codeMatch = msg.match(/код[:\s]+([a-zA-Z0-9_]+)/i);
+                    if (!codeMatch || codeMatch[1] !== "12345") autoReply = `Аккаунт "${targetNick}" не может быть разбанен. Неверный код.`;
+                    else {
+                        try {
+                            const userQuery = query(collection(db, "users"), where("nickname", "==", targetNick));
+                            const userSnap = await getDocs(userQuery);
+                            if (userSnap.empty) autoReply = `Аккаунт с ником "${targetNick}" не найден.`;
+                            else {
+                                const userDoc = userSnap.docs[0];
+                                if (userDoc.data().banned === false) autoReply = `Аккаунт "${targetNick}" не забанен.`;
+                                else { await updateDoc(doc(db, "users", userDoc.id), { banned: false }); autoReply = `✅ Аккаунт "${targetNick}" разбанен!`; }
+                            }
+                        } catch (e) { autoReply = "Ошибка разбана."; }
+                    }
+                }
+            } else if (lowerMsg.includes("клик") || lowerMsg.includes("труб") || lowerMsg.includes("птиц") || lowerMsg.includes("игр") || lowerMsg.includes("flappy")) {
+                autoReply = "NEON FLAPPY — тапай по экрану, чтобы птица летела вверх. Пролетай между трубами и получай монеты! Чем больше труб пролетел — тем больше монет.";
+            } else if (lowerMsg.includes("уров") || lowerMsg.includes("улучш") || lowerMsg.includes("прокач")) {
+                autoReply = "Панель 'Улучшение' повышает множитель монет за трубу. Каждый уровень = +1 монета за каждую пройденную трубу!";
+            } else if (lowerMsg.includes("пассив") || lowerMsg.includes("авто")) {
+                autoReply = "Пассивный доход начисляется каждые 2 секунды. Улучшай его кнопкой 'Улучшить пассив' — монеты капают даже когда ты не играешь!";
+            } else if (lowerMsg.includes("друг") || lowerMsg.includes("чат")) {
+                autoReply = "Добавляй друзей через поиск по нику и общайся в личном чате в разделе 'Друзья'.";
+            } else if (lowerMsg.includes("магазин") || lowerMsg.includes("бокс") || lowerMsg.includes("рамк") || lowerMsg.includes("титул") || lowerMsg.includes("баннер") || lowerMsg.includes("цвет") || lowerMsg.includes("пин")) {
+                autoReply = "Всё в разделе 'Магазин': аватарки, баннеры, рамки, цвета, титулы, пины и лутбоксы!";
+            } else if (lowerMsg.includes("баг") || lowerMsg.includes("ошибк") || lowerMsg.includes("не работает")) {
+                autoReply = "Опишите баг подробнее — администратор проверит. Попробуйте перезагрузить страницу.";
+            } else if (lowerMsg.includes("привет") || lowerMsg.includes("здравствуй")) {
+                autoReply = "Привет! Спрашивай про игру, магазин, друзей или баги.";
+            } else if (lowerMsg.includes("аккаунт") || lowerMsg.includes("пароль")) {
+                autoReply = "Проверь ник (только латиница и цифры) и пароль (мин. 6 символов). Если не помогло — к администратору.";
+            } else if (lowerMsg.includes("донат") || lowerMsg.includes("деньг")) {
+                autoReply = "Доната нет. Всё зарабатывается игрой!";
+            } else if (lowerMsg.includes("читер") || lowerMsg.includes("взлом")) {
+                autoReply = "Напиши ник читера — администратор проверит.";
+            } else if (lowerMsg.includes("спасибо")) {
+                autoReply = "Всегда пожалуйста!";
+            }
+            const btn = document.getElementById('sendTicketBtn'); btn.disabled = true; btn.textContent = 'Отправка...';
+            try {
+                await addDoc(collection(db, "tickets"), { uid: currentUser.uid, nickname: userData.nickname, message: msg, status: 'closed', reply: autoReply, timestamp: Date.now() });
+                document.getElementById('ticketMessage').value = '';
+                loadTickets();
+            } catch(e) { alert('Ошибка отправки'); } finally { btn.disabled = false; btn.textContent = 'Отправить запрос'; }
+        });
+
+        document.getElementById('shopBtn').addEventListener('click', () => { currentShopCategory = 'avatar'; renderShopTabs(); renderShopItems(); showScreen(shopScreen); });
+        document.getElementById('closeShopBtn').addEventListener('click', () => showScreen(gameScreen));
+
+        function renderShopTabs() {
+            shopTabs.innerHTML = '';
+            const categories = [
+                { id: 'avatar', name: 'Аватарки' }, { id: 'banner', name: 'Баннеры' },
+                { id: 'frame', name: 'Рамки' }, { id: 'color', name: 'Цвета' },
+                { id: 'title', name: 'Титулы' }, { id: 'pin', name: 'Пины' }, { id: 'lootbox', name: 'Боксы' }
+            ];
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `shop-tab ${currentShopCategory === cat.id ? 'active' : ''}`;
+                btn.textContent = cat.name;
+                btn.onclick = () => { currentShopCategory = cat.id; renderShopTabs(); renderShopItems(); };
+                shopTabs.appendChild(btn);
+            });
+        }
+
+        function renderShopItems() {
+            shopList.innerHTML = '';
+            if (currentShopCategory === 'avatar') {
+                shopItems.filter(i => i.type === 'avatar').forEach(item => {
+                    const isOwned = userData.inventory.includes(item.id);
+                    const isEquipped = userData.avatar === item.icon;
+                    const div = document.createElement('div'); div.className = 'shop-item';
+                    div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="width:35px; height:35px; display:flex; align-items:center; justify-content:center;">${item.icon}</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#fff">${item.name}</div><div style="font-size:0.7rem; color:#aaa;">${isOwned ? 'Куплено' : 'Цена: ' + item.price}</div></div></div><button class="buy-btn" ${isEquipped ? 'disabled' : ''}>${isEquipped ? 'Надето' : (isOwned ? 'Надеть' : 'Купить')}</button>`;
+                    const btn = div.querySelector('button');
+                    btn.onclick = () => {
+                        if (isEquipped) return;
+                        if (isOwned) { userData.avatar = item.icon; saveToCloud(true); renderShopItems(); updateUI(); }
+                        else { if (userData.score >= item.price) { userData.score -= item.price; userData.inventory.push(item.id); userData.avatar = item.icon; updateUI(); saveToCloud(true); renderShopItems(); createParticles(window.innerWidth/2, window.innerHeight/2, 30); } else alert('Недостаточно монет!'); }
+                    };
+                    shopList.appendChild(div);
+                });
+            } else if (currentShopCategory === 'banner') {
+                shopItems.filter(i => i.type === 'banner').forEach(item => {
+                    const isOwned = userData.inventory.includes(item.id);
+                    const isEquipped = userData.banner === item.style;
+                    const div = document.createElement('div'); div.className = 'shop-item';
+                    const animClass = item.isAnimated ? 'animated-banner' : '';
+                    div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview ${animClass}" style="background:${item.style}; border-radius:5px; width:35px; height:35px; display:flex; align-items:center; justify-content:center;">${item.icon}</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#0ff">${item.name}</div><div style="font-size:0.7rem; color:#aaa;">${isOwned ? 'Куплено' : 'Цена: ' + item.price}</div></div></div><button class="buy-btn" ${isEquipped ? 'disabled' : ''}>${isEquipped ? 'Надето' : (isOwned ? 'Надеть' : 'Купить')}</button>`;
+                    const btn = div.querySelector('button');
+                    btn.onclick = () => {
+                        if (isEquipped) return;
+                        if (isOwned) { userData.banner = item.style; saveToCloud(true); renderShopItems(); updateUI(); }
+                        else { if (userData.score >= item.price) { userData.score -= item.price; userData.inventory.push(item.id); userData.banner = item.style; updateUI(); saveToCloud(true); renderShopItems(); createParticles(window.innerWidth/2, window.innerHeight/2, 30); } else alert('Недостаточно монет!'); }
+                    };
+                    shopList.appendChild(div);
+                });
+            } else if (currentShopCategory === 'frame') {
+                allFrames.forEach(item => {
+                    const isOwned = userData.inventory.includes(item.id);
+                    const isEquipped = userData.customFrame === item.className;
+                    const div = document.createElement('div'); div.className = 'shop-item';
+                    div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview ${item.className}" style="width:35px; height:35px; display:flex; align-items:center; justify-content:center;">${item.icon}</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#fff">${item.name}</div><div style="font-size:0.7rem; color:#aaa;">${isOwned ? 'Куплено' : 'Цена: ' + item.price}</div></div></div><button class="buy-btn" ${isEquipped ? 'disabled' : ''}>${isEquipped ? 'Надето' : (isOwned ? 'Надеть' : (item.price === 0 ? 'Бесплатно' : 'Купить'))}</button>`;
+                    const btn = div.querySelector('button');
+                    btn.onclick = () => {
+                        if (isEquipped) return;
+                        if (isOwned) { userData.customFrame = item.className; saveToCloud(true); renderShopItems(); updateUI(); }
+                        else {
+                            if (item.price === 0) { userData.inventory.push(item.id); userData.customFrame = item.className; updateUI(); saveToCloud(true); renderShopItems(); }
+                            else if (userData.score >= item.price) { userData.score -= item.price; userData.inventory.push(item.id); userData.customFrame = item.className; updateUI(); saveToCloud(true); renderShopItems(); createParticles(window.innerWidth/2, window.innerHeight/2, 30); }
+                            else alert('Недостаточно монет!');
+                        }
+                    };
+                    shopList.appendChild(div);
+                });
+            } else if (currentShopCategory === 'color') {
+                allColors.forEach(item => {
+                    const isOwned = userData.inventory.includes(item.id);
+                    const isEquipped = userData.customColor === item.className;
+                    const div = document.createElement('div'); div.className = 'shop-item';
+                    div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview ${item.className}" style="font-weight:bold; font-size:1.2rem; width:35px; height:35px; display:flex; align-items:center; justify-content:center;">Aa</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#fff">${item.name}</div><div style="font-size:0.7rem; color:#aaa;">${isOwned ? 'Куплено' : 'Цена: ' + item.price}</div></div></div><button class="buy-btn" ${isEquipped ? 'disabled' : ''}>${isEquipped ? 'Надето' : (isOwned ? 'Надеть' : 'Купить')}</button>`;
+                    const btn = div.querySelector('button');
+                    btn.onclick = () => {
+                        if (isEquipped) return;
+                        if (isOwned) { userData.customColor = item.className; saveToCloud(true); renderShopItems(); updateUI(); }
+                        else { if (userData.score >= item.price) { userData.score -= item.price; userData.inventory.push(item.id); userData.customColor = item.className; updateUI(); saveToCloud(true); renderShopItems(); createParticles(window.innerWidth/2, window.innerHeight/2, 30); } else alert('Недостаточно монет!'); }
+                    };
+                    shopList.appendChild(div);
+                });
+            } else if (currentShopCategory === 'title') {
+                allTitles.forEach(item => {
+                    const titleText = `${item.icon} ${item.name.toUpperCase()}`;
+                    const isEquipped = userData.customTitle === titleText;
+                    
+                    if (item.requiredLevel > 0) {
+                        const isUnlocked = userData.wins >= item.requiredLevel;
+                        const div = document.createElement('div'); div.className = 'shop-item';
+                        div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="width:35px; height:35px; display:flex; align-items:center; justify-content:center;">${item.icon}</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#ffd700">${item.name}</div><div style="font-size:0.7rem; color:${isUnlocked ? '#0f0' : '#ff3366'};">${isUnlocked ? 'Доступно' : 'Нужно ' + item.requiredLevel + ' кубков'}</div></div></div><button class="buy-btn" ${isEquipped || !isUnlocked ? 'disabled' : ''}>${isEquipped ? 'Надето' : 'Надеть'}</button>`;
+                        const btn = div.querySelector('button');
+                        btn.onclick = () => { if (!isUnlocked) return; userData.customTitle = titleText; saveToCloud(true); renderShopItems(); updateUI(); };
+                        shopList.appendChild(div);
+                    } else {
+                        const isOwned = userData.inventory.includes(item.id);
+                        const div = document.createElement('div'); div.className = 'shop-item';
+                        const titleClass = item.isDarkBlue ? 'dark-blue-title' : '';
+                        div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="width:35px; height:35px; display:flex; align-items:center; justify-content:center;">${item.icon}</span><div style="margin-left: 10px;"><div class="title-name ${titleClass}" style="font-weight:bold;">${item.name}</div><div style="font-size:0.7rem; color:#aaa;">${isOwned ? 'Куплено' : 'Цена: ' + item.price}</div></div></div><button class="buy-btn" ${isEquipped ? 'disabled' : ''}>${isEquipped ? 'Надето' : (isOwned ? 'Надеть' : 'Купить')}</button>`;
+                        const btn = div.querySelector('button');
+                        btn.onclick = () => {
+                            if (isEquipped) return;
+                            if (isOwned) { userData.customTitle = titleText; saveToCloud(true); renderShopItems(); updateUI(); }
+                            else { if (userData.score >= item.price) { userData.score -= item.price; userData.inventory.push(item.id); userData.customTitle = titleText; updateUI(); saveToCloud(true); renderShopItems(); createParticles(window.innerWidth/2, window.innerHeight/2, 30); } else alert('Недостаточно монет!'); }
+                        };
+                        shopList.appendChild(div);
+                    }
+                });
+            } else if (currentShopCategory === 'pin') {
+                allPins.forEach(item => {
+                    const isOwned = userData.inventory.includes(item.id);
+                    const isEquipped = userData.customPin === item.icon;
+                    const div = document.createElement('div'); div.className = 'shop-item';
+                    div.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="font-size:1.5rem; width:35px; height:35px; display:flex; align-items:center; justify-content:center;">${item.icon}</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#fff">${item.name}</div><div style="font-size:0.7rem; color:#aaa;">${isOwned ? 'Куплено' : 'Цена: ' + item.price}</div></div></div><button class="buy-btn" ${isEquipped ? 'disabled' : ''}>${isEquipped ? 'Надето' : (isOwned ? 'Надеть' : 'Купить')}</button>`;
+                    const btn = div.querySelector('button');
+                    btn.onclick = () => {
+                        if (isEquipped) return;
+                        if (isOwned) { userData.customPin = item.icon; saveToCloud(true); renderShopItems(); updateUI(); }
+                        else { if (userData.score >= item.price) { userData.score -= item.price; userData.inventory.push(item.id); userData.customPin = item.icon; updateUI(); saveToCloud(true); renderShopItems(); createParticles(window.innerWidth/2, window.innerHeight/2, 30); } else alert('Недостаточно монет!'); }
+                    };
+                    shopList.appendChild(div);
+                });
+            } else if (currentShopCategory === 'lootbox') {
+                const divBox = document.createElement('div'); divBox.className = 'shop-item';
+                divBox.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="font-size:2rem; width:35px; height:35px; display:flex; align-items:center; justify-content:center;">📦</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#f0f">Случайный Бокс</div><div style="font-size:0.7rem; color:#aaa;">Цена: ${BOX_COST} монет</div></div></div><button class="buy-btn" ${userData.score < BOX_COST ? 'disabled' : ''}>Открыть</button>`;
+                divBox.querySelector('button').onclick = openLootBox;
+                shopList.appendChild(divBox);
+
+                const divPinPack = document.createElement('div'); divPinPack.className = 'shop-item';
+                divPinPack.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="font-size:2rem;">📦</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#ffd700">Пин-пакет (3 пина)</div><div style="font-size:0.7rem; color:#aaa;">Цена: 3 000 монет</div></div></div><button class="buy-btn" ${userData.score < 3000 ? 'disabled' : ''}>Открыть</button>`;
+                divPinPack.querySelector('button').onclick = buyPinPackage;
+                shopList.appendChild(divPinPack);
+
+                const divIconPack = document.createElement('div'); divIconPack.className = 'shop-item';
+                divIconPack.innerHTML = `<div style="display:flex; align-items:center;"><span class="preview" style="font-size:2rem;">📦</span><div style="margin-left: 10px;"><div style="font-weight:bold; color:#ffd700">Икон-пакет (3 иконки)</div><div style="font-size:0.7rem; color:#aaa;">Цена: 3 500 монет</div></div></div><button class="buy-btn" ${userData.score < 3500 ? 'disabled' : ''}>Открыть</button>`;
+                divIconPack.querySelector('button').onclick = buyIconPackage;
+                shopList.appendChild(divIconPack);
+            }
+        }
+
+        async function loadLeaderboard() {
+            leaderboardList.innerHTML = '<div style="text-align:center; color:#0ff;">Загрузка...</div>';
+            try {
+                const q = query(collection(db, "users"), limit(100));
+                const querySnapshot = await getDocs(q, { source: 'server' });
+                let players = [];
+                
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (data.banned) return;
+                    let actualWins = (docSnap.id === currentUser.uid) ? userData.wins : (data.wins || 0);
+                    players.push({ id: docSnap.id, data, wins: actualWins });
+                });
+
+                players.sort((a, b) => b.wins - a.wins);
+                players = players.slice(0, 30);
+
+                leaderboardList.innerHTML = '';
+                let rank = 1;
+                players.forEach((player) => {
+                    const data = player.data;
+                    const isSelf = player.id === currentUser.uid;
+                    const div = document.createElement('div');
+                    div.className = `leader-item ${isSelf ? 'self' : ''}`;
+                    const colorClass = data.customColor || '';
+                    const frameClass = data.customFrame || '';
+                    const pinIcon = data.customPin || '';
+                    let avatarHtml = data.avatar || '👤';
+                    if (frameClass) avatarHtml = `<span class="${frameClass}" style="display:inline-flex; justify-content:center; align-items:center; width:24px; height:24px; font-size:0.8rem;">${avatarHtml}</span>`;
+                    div.innerHTML = `<span>${rank}. ${avatarHtml} <span class="${colorClass}">${data.nickname || 'Игрок'}</span> ${pinIcon ? `<span>${pinIcon}</span>` : ''} <span style="font-size:0.65rem; color:#ffd700;">${getDisplayTitle(player.wins, data.customTitle)}</span></span><span style="font-weight:bold; color:#0ff;">${Math.floor(player.wins)} 🏆</span>`;
+                    div.onclick = () => showProfile(data, player.id);
+                    if (isAdmin && !isSelf) {
+                        const banBtn = document.createElement('button');
+                        banBtn.textContent = 'Бан';
+                        banBtn.style.cssText = "margin-left: 10px; padding: 4px 8px; font-size: 0.7rem; background: transparent; color: #f00; border: 1px solid #f00; border-radius: 5px; cursor: pointer;";
+                        banBtn.onclick = async (e) => {
+                            e.stopPropagation(); if (banBtn.disabled) return;
+                            banBtn.disabled = true; banBtn.textContent = '...';
+                            try { await updateDoc(doc(db, "users", player.id), { banned: true }); div.style.display = 'none'; }
+                            catch (err) { alert('Ошибка при бане!'); banBtn.textContent = 'Бан'; banBtn.disabled = false; }
+                        };
+                        div.appendChild(banBtn);
+                    }
+                    leaderboardList.appendChild(div); rank++;
+                });
+                if (rank === 1) leaderboardList.innerHTML = '<div style="text-align:center;">Пока нет игроков</div>';
+            } catch (e) {
+                console.error(e);
+                leaderboardList.innerHTML = '<div style="text-align:center; color:red;">Ошибка загрузки</div>';
+            }
+        }
+
+        document.getElementById('leaderboardBtn').addEventListener('click', () => { showScreen(leaderboardScreen); loadLeaderboard(); });
+        document.getElementById('refreshLeaderboardBtn').addEventListener('click', loadLeaderboard);
+        document.getElementById('closeLeaderboardBtn').addEventListener('click', () => showScreen(gameScreen));
+
+        function showProfile(data, uid) {
+            viewingProfileUid = uid;
+            const profileBox = document.getElementById('profileBox');
+            profileBox.className = 'profile-box';
+            const frameBadge = document.getElementById('profileFrameBadge');
+            frameBadge.style.display = 'none';
+            if (data.customFrame) {
+                profileBox.classList.add(data.customFrame);
+                const frameItem = allFrames.find(f => f.className === data.customFrame);
+                if (frameItem) { frameBadge.textContent = frameItem.icon; frameBadge.style.display = 'flex'; }
+            }
+            document.getElementById('profileBanner').style.background = data.banner || 'linear-gradient(90deg, #111, #333)';
+            const bannerItem = shopItems.find(i => i.style === data.banner);
+            if (bannerItem && bannerItem.isAnimated) document.getElementById('profileBanner').classList.add('animated-banner');
+            else document.getElementById('profileBanner').classList.remove('animated-banner');
+            document.getElementById('profileAvatar').textContent = data.avatar || '👤';
+            const nameEl = document.getElementById('profileName');
+            nameEl.textContent = data.nickname || 'Игрок';
+            nameEl.className = 'profile-name ' + (data.customColor || '');
+            document.getElementById('profilePin').textContent = data.customPin || '';
+            const rankEl = document.getElementById('profileRank');
+            rankEl.textContent = getDisplayTitle(data.wins || 0, data.customTitle);
+            const isDarkBlue = allTitles.some(t => t.isDarkBlue && `${t.icon} ${t.name.toUpperCase()}` === data.customTitle);
+            rankEl.className = 'profile-rank ' + (isDarkBlue ? 'dark-blue-title' : '');
+            
+            document.getElementById('profileWins').textContent = data.wins || 0;
+            document.getElementById('profileScore').textContent = Math.floor(data.score);
+            document.getElementById('profileLevel').textContent = data.level;
+
+            const addBtn = document.getElementById('addFriendBtn');
+            const chatBtn = document.getElementById('chatWithFriendBtn');
+            if (uid !== currentUser.uid) {
+                if (userData.friends && userData.friends.includes(uid)) { addBtn.style.display = 'none'; chatBtn.style.display = 'block'; }
+                else { addBtn.style.display = 'block'; addBtn.textContent = 'Добавить в друзья'; addBtn.disabled = false; chatBtn.style.display = 'none'; }
+            } else { addBtn.style.display = 'none'; chatBtn.style.display = 'none'; }
+            showScreen(profileScreen);
+        }
+
+        document.getElementById('myProfileBtn').addEventListener('click', () => showProfile(userData, currentUser.uid));
+        document.getElementById('closeProfileBtn').addEventListener('click', () => {
+            if (leaderboardScreen.classList.contains('active') === false) showScreen(gameScreen);
+            else showScreen(leaderboardScreen);
+        });
+
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        const colors = ['#00ffff', '#ff00ff', '#aa88ff', '#00ffcc', '#ffaa00'];
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize); resize();
+        function createParticles(x, y, count, big = false) {
+            for (let i = 0; i < (big ? count * 2 : count); i++) {
+                particles.push({ x: x + (Math.random() - 0.5) * 100, y: y + (Math.random() - 0.5) * 100, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1, color: colors[Math.floor(Math.random() * colors.length)], size: Math.random() * 4 + 2 });
+            }
+        }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                if (p.life <= 0) { particles.splice(i, 1); continue; }
+                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+  </html>
