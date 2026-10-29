@@ -146,15 +146,55 @@
         .chat-input-area input { flex: 1; padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.5); border: 1px solid #0ff; color: white; outline: none; font-size: 0.8rem; }
 
         /* Профиль */
-        .profile-box { width: 100%; background: rgba(10,5,25,0.9); padding: 40px 16px 16px 16px; border-radius: 20px; border: 2px solid #0ff; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; overflow: visible; margin: auto; }
-        .profile-banner { position: absolute; top: 0; left: 0; width: 100%; height: 80px; z-index: 0; border-radius: 18px 18px 0 0; }
-        .frame-badge { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; background: #0a0a1a; border: 3px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.4rem; z-index: 5; box-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; }
-        .profile-avatar { font-size: 3rem; z-index: 1; margin-top: 25px; text-shadow: 0 0 10px #0ff; }
-        .profile-name-wrapper { display: flex; align-items: center; gap: 4px; z-index: 1; margin-top: 4px; }
-        .profile-name { font-size: 1.3rem; font-weight: bold; text-shadow: 0 0 10px #fff; }
+        .profile-box {
+            width: 100%;
+            background: rgba(10,5,25,0.9);
+            padding: 50px 16px 16px 16px;
+            border-radius: 30px !important;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            margin: auto;
+            border: 2px solid #0ff;
+            box-shadow: 0 0 20px rgba(0,255,255,0.3);
+        }
+        .profile-banner {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 90px;
+            z-index: 0;
+            border-radius: 28px 28px 0 0;
+        }
+        .frame-badge {
+            position: absolute;
+            top: -20px; left: 50%;
+            transform: translateX(-50%);
+            width: 44px; height: 44px;
+            background: #0a0a1a;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.4rem;
+            z-index: 5;
+            box-shadow: 0 0 12px rgba(0,0,0,0.8);
+        }
+        .profile-avatar { font-size: 3.2rem; z-index: 1; margin-top: 20px; text-shadow: 0 0 12px #0ff; }
+        .profile-name-wrapper { display: flex; align-items: center; gap: 6px; z-index: 1; margin-top: 4px; }
+        .profile-name { font-size: 1.3rem; font-weight: bold; text-shadow: 0 0 10px currentColor; }
         .profile-pin { font-size: 1.3rem; text-shadow: 0 0 10px #0ff; }
-        .profile-rank { font-size: 0.8rem; color: #ffd700; z-index: 1; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
-        .profile-stats { display: flex; gap: 10px; z-index: 1; background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 20px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); }
+        .profile-rank { font-size: 0.8rem; color: #ffd700; z-index: 1; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; text-align: center; }
+        .profile-stats { display: flex; gap: 14px; z-index: 1; background: rgba(0,0,0,0.7); padding: 10px 18px; border-radius: 20px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-cell { text-align: center; min-width: 60px; }
+        .stat-label { font-size: 0.65rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-weight: bold; font-size: 1.2rem; }
+        .stat-trophies { color: #ffd700; }
+        .stat-coins { color: #0ff; }
+        .stat-level { color: #f0f; }
 
         /* Рамки */
         .frame-rank { border: 4px solid #cd7f32 !important; box-shadow: 0 0 15px #cd7f32, inset 0 0 10px #cd7f32 !important; }
@@ -208,7 +248,7 @@
         .frame-aether { border: 4px solid #9370db !important; box-shadow: 0 0 30px #9370db, inset 0 0 20px #9370db !important; border-style: double !important; }
         .frame-aether .frame-badge { border-color: #9370db; box-shadow: 0 0 25px #9370db; color: #9370db; }
 
-        /* Цвета ников */
+        /* Цвета */
         .rainbow-text { background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff, #ff0000); background-size: 200% auto; color: transparent; -webkit-background-clip: text; background-clip: text; animation: rainbow-anim 3s linear infinite; }
         .neon-blue-text { color: #0ff; text-shadow: 0 0 5px #0ff, 0 0 15px #0ff, 0 0 25px #0ff; animation: pulse-anim 1.5s infinite alternate; }
         .neon-pink-text { color: #f0f; text-shadow: 0 0 5px #f0f, 0 0 15px #f0f, 0 0 25px #f0f; animation: pulse-anim 1.5s infinite alternate; }
@@ -386,13 +426,17 @@
             </div>
             <div class="profile-rank" id="profileRank">Ранг</div>
             <div class="profile-stats">
-                <div style="text-align:center;">
-                    <div style="font-size:0.7rem; color:#aaa;">ПОБЕДЫ</div>
-                    <div style="font-weight:bold; color:#0ff; font-size:1.2rem;" id="profileWins">0</div>
+                <div class="stat-cell">
+                    <div class="stat-label">Кубки</div>
+                    <div class="stat-value stat-trophies" id="profileWins">0</div>
                 </div>
-                <div style="text-align:center;">
-                    <div style="font-size:0.7rem; color:#aaa;">МОНЕТЫ</div>
-                    <div style="font-weight:bold; color:#ffd700; font-size:1.2rem;" id="profileScore">0</div>
+                <div class="stat-cell">
+                    <div class="stat-label">Монеты</div>
+                    <div class="stat-value stat-coins" id="profileScore">0</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-label">Уровень</div>
+                    <div class="stat-value stat-level" id="profileLevel">1</div>
                 </div>
             </div>
             <button class="action-btn" id="addFriendBtn" style="z-index:1; margin-bottom:5px; display:none;">Добавить в друзья</button>
@@ -404,7 +448,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, limit, getDocs, where, addDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteField, collection, query, orderBy, limit, getDocs, where, addDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAPGT5JIMsbUsuKVvJ3ZJKjaBQFllPE3YM",
@@ -491,6 +535,7 @@
 
         function resizeFlappy() {
             const rect = flappyStage.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
             const dpr = window.devicePixelRatio || 1;
             flappyCanvas.width = rect.width * dpr;
             flappyCanvas.height = rect.height * dpr;
@@ -536,11 +581,10 @@
             if (GAME.score > GAME.best) GAME.best = GAME.score;
             bestScoreEl.textContent = GAME.best;
 
-            // Начисляем монеты
             const earned = GAME.score * userData.clicksPerClick;
             if (GAME.score > 0 && currentUser && !userData.banned) {
                 userData.score += earned;
-                saveToCloud(true); // Принудительное сохранение монет
+                saveToCloud(true);
             }
             updateUI();
 
@@ -615,8 +659,8 @@
                 if (!p.scored && p.x + GAME.pipeW < b.x) {
                     p.scored = true;
                     GAME.score++;
-                    userData.wins++; // Увеличиваем кубки прямо во время игры
-                    saveToCloud(true); // Сохраняем кубки в базу СРАЗУ при пролете трубы
+                    userData.wins++;
+                    saveToCloud(true);
                     runScoreEl.textContent = GAME.score;
                     createParticles(b.x, b.y, 12);
                 }
@@ -625,6 +669,7 @@
 
         function drawFlappy() {
             const W = GAME.W, H = GAME.H;
+            if (W === 0 || H === 0) return;
             const sky = fctx.createLinearGradient(0, 0, 0, H);
             sky.addColorStop(0, '#001a33');
             sky.addColorStop(0.4, '#003a66');
@@ -751,7 +796,6 @@
             { id: 'lvl_800', icon: '🚀', name: 'Грандмастер', requiredLevel: 800 },
             { id: 'lvl_900', icon: '🌌', name: 'Легенда', requiredLevel: 900 },
             { id: 'lvl_1000', icon: '👑', name: 'Бог', requiredLevel: 1000 },
-            
             { id: 'title1', icon: '♾️', name: 'Бесконечность не предел', price: 2500 },
             { id: 'title2', icon: '🤱', name: 'Твоя мамка', price: 2500 },
             { id: 'title3', icon: '📦', name: 'Мега ящик', price: 2500 },
@@ -1075,7 +1119,7 @@
             if (user) {
                 currentUser = user;
                 const adminDoc = await getDoc(doc(db, "admins", user.uid));
-                isAdmin = adminDoc.exists();
+                isAdmin = adminDoc.exists() && adminDoc.data().isAdmin === true;
                 document.getElementById('adminBtn').style.display = isAdmin ? 'block' : 'none';
 
                 const docSnap = await getDoc(doc(db, "users", user.uid));
@@ -1121,10 +1165,8 @@
             }
         });
 
-        // Сохраняем прогресс, если игрок сворачивает вкладку или закрывает браузер
         window.addEventListener('beforeunload', () => {
             if (currentUser && !userData.banned) {
-                // Используем setDoc для гарантированной отправки при закрытии
                 const dataToSave = {
                     score: Math.floor(userData.score), wins: userData.wins, clicksPerClick: userData.clicksPerClick,
                     level: userData.level, upgradeCost: userData.upgradeCost,
@@ -1137,7 +1179,6 @@
                     lastLogoutTime: Date.now(),
                     usedGifts: userData.usedGifts
                 };
-                // Не ждем ответа, чтобы браузер не блокировал закрытие
                 updateDoc(doc(db, "users", currentUser.uid), dataToSave);
             }
         });
@@ -1469,6 +1510,7 @@
             } catch(e) { btn.textContent = 'Ошибка'; btn.disabled = false; }
         });
 
+        // === АДМИНКА ===
         document.getElementById('adminBtn').addEventListener('click', () => { loadAdminPanel(); showScreen(adminScreen); });
         document.getElementById('closeAdminBtn').addEventListener('click', () => showScreen(gameScreen));
 
@@ -1478,30 +1520,77 @@
                 const q = query(collection(db, "users"));
                 const snap = await getDocs(q, { source: 'server' });
                 adminList.innerHTML = '';
-                snap.forEach(docSnap => {
+                
+                for (const docSnap of snap.docs) {
                     const data = docSnap.data(); const uid = docSnap.id;
                     const isBanned = data.banned === true;
+                    
+                    const adminDoc = await getDoc(doc(db, "admins", uid));
+                    const isTargetAdmin = adminDoc.exists() && adminDoc.data().isAdmin === true;
+
                     const div = document.createElement('div'); div.className = 'admin-item';
                     const colorClass = data.customColor || '';
+                    
                     div.innerHTML = `<div style="display:flex; flex-direction:column; width:100%;">
-                        <span style="font-weight:bold; font-size:1rem;"><span class="${colorClass}">${data.nickname || 'Игрок'}</span> ${isBanned ? '🚫 (Забанен)' : ''}</span>
-                        <span style="font-size:0.7rem; color:#aaa;">Ур. ${data.level || 1} · Монет: ${Math.floor(data.score || 0)}</span>
+                        <span style="font-weight:bold; font-size:1rem;"><span class="${colorClass}">${data.nickname || 'Игрок'}</span> ${isBanned ? '🚫 (Забанен)' : ''} ${isTargetAdmin ? '👑 (Админ)' : ''}</span>
+                        <span style="font-size:0.7rem; color:#aaa;">Монет: ${Math.floor(data.score || 0)} | Кубков: ${data.wins || 0}</span>
                     </div>`;
-                    const btn = document.createElement('button');
-                    btn.className = `action-btn ${isBanned ? 'success' : 'danger'}`;
-                    btn.textContent = isBanned ? 'Разбанить' : 'Забанить';
-                    btn.style.width = '100%'; btn.style.marginTop = '5px';
-                    btn.onclick = async () => {
-                        btn.disabled = true; btn.textContent = '...';
-                        try { await updateDoc(doc(db, "users", uid), { banned: !isBanned }); loadAdminPanel(); }
-                        catch (e) { alert('Ошибка!'); btn.disabled = false; btn.textContent = isBanned ? 'Разбанить' : 'Забанить'; }
-                    };
-                    div.appendChild(btn); adminList.appendChild(div);
-                });
+
+                    const btnContainer = document.createElement('div');
+                    btnContainer.style.display = 'flex';
+                    btnContainer.style.gap = '5px';
+                    btnContainer.style.marginTop = '5px';
+                    btnContainer.style.width = '100%';
+
+                    if (data.nickname !== userData.nickname) {
+                        const banBtn = document.createElement('button');
+                        banBtn.className = `action-btn ${isBanned ? 'success' : 'danger'}`;
+                        banBtn.textContent = isBanned ? 'Разбанить' : 'Забанить';
+                        banBtn.style.flex = '1';
+                        banBtn.onclick = async () => {
+                            banBtn.disabled = true;
+                            try { await updateDoc(doc(db, "users", uid), { banned: !isBanned }); loadAdminPanel(); }
+                            catch (e) { alert('Ошибка!'); banBtn.disabled = false; }
+                        };
+                        btnContainer.appendChild(banBtn);
+
+                        const moneyBtn = document.createElement('button');
+                        moneyBtn.className = `action-btn`;
+                        moneyBtn.textContent = '+10K💰';
+                        moneyBtn.style.flex = '1';
+                        moneyBtn.onclick = async () => {
+                            moneyBtn.disabled = true;
+                            try { await updateDoc(doc(db, "users", uid), { score: (data.score || 0) + 10000 }); loadAdminPanel(); }
+                            catch (e) { alert('Ошибка!'); moneyBtn.disabled = false; }
+                        };
+                        btnContainer.appendChild(moneyBtn);
+
+                        const adminToggleBtn = document.createElement('button');
+                        adminToggleBtn.className = `action-btn ${isTargetAdmin ? 'warning' : 'success'}`;
+                        adminToggleBtn.textContent = isTargetAdmin ? 'Снять админа' : 'Сделать админом';
+                        adminToggleBtn.style.flex = '1';
+                        adminToggleBtn.onclick = async () => {
+                            adminToggleBtn.disabled = true;
+                            try {
+                                if (isTargetAdmin) {
+                                    await deleteDoc(doc(db, "admins", uid));
+                                } else {
+                                    await setDoc(doc(db, "admins", uid), { isAdmin: true });
+                                }
+                                loadAdminPanel();
+                            } catch (e) { alert('Ошибка!'); adminToggleBtn.disabled = false; }
+                        };
+                        btnContainer.appendChild(adminToggleBtn);
+                    }
+                    
+                    div.appendChild(btnContainer);
+                    adminList.appendChild(div);
+                }
                 if (snap.empty) adminList.innerHTML = '<div style="text-align:center;">Нет игроков</div>';
-            } catch (e) { adminList.innerHTML = '<div style="text-align:center; color:red;">Ошибка загрузки</div>'; }
+            } catch (e) { console.error(e); adminList.innerHTML = '<div style="text-align:center; color:red;">Ошибка загрузки</div>'; }
         }
 
+        // === ПОДДЕРЖКА ===
         document.getElementById('supportBtn').addEventListener('click', () => { loadTickets(); showScreen(supportScreen); });
         document.getElementById('closeSupportBtn').addEventListener('click', () => showScreen(gameScreen));
 
@@ -1576,6 +1665,7 @@
             } catch(e) { alert('Ошибка отправки'); } finally { btn.disabled = false; btn.textContent = 'Отправить запрос'; }
         });
 
+        // === МАГАЗИН ===
         document.getElementById('shopBtn').addEventListener('click', () => { currentShopCategory = 'avatar'; renderShopTabs(); renderShopItems(); showScreen(shopScreen); });
         document.getElementById('closeShopBtn').addEventListener('click', () => showScreen(gameScreen));
 
@@ -1744,7 +1834,7 @@
                     const frameClass = data.customFrame || '';
                     const pinIcon = data.customPin || '';
                     let avatarHtml = data.avatar || '👤';
-                    if (frameClass) avatarHtml = `<span class="${frameClass}" style="display:inline-flex; justify-content:center; align-items:center; width:24px; height:24px; font-size:0.8rem;">${avatarHtml}</span>`;
+                    if (frameClass) avatarHtml = `<span class="${frameClass}" style="display:inline-flex; justify-content:center; align-items:center; width:24px; height:24px; font-size:0.8rem; border-radius:50%;">${avatarHtml}</span>`;
                     div.innerHTML = `<span>${rank}. ${avatarHtml} <span class="${colorClass}">${data.nickname || 'Игрок'}</span> ${pinIcon ? `<span>${pinIcon}</span>` : ''} <span style="font-size:0.65rem; color:#ffd700;">${getDisplayTitle(player.wins, data.customTitle)}</span></span><span style="font-weight:bold; color:#0ff;">${Math.floor(player.wins)} 🏆</span>`;
                     div.onclick = () => showProfile(data, player.id);
                     if (isAdmin && !isSelf) {
@@ -1772,21 +1862,34 @@
         document.getElementById('refreshLeaderboardBtn').addEventListener('click', loadLeaderboard);
         document.getElementById('closeLeaderboardBtn').addEventListener('click', () => showScreen(gameScreen));
 
+        // === ПРОФИЛЬ ===
         function showProfile(data, uid) {
             viewingProfileUid = uid;
             const profileBox = document.getElementById('profileBox');
-            profileBox.className = 'profile-box';
             const frameBadge = document.getElementById('profileFrameBadge');
+            const profileBanner = document.getElementById('profileBanner');
+
+            // Сброс классов
+            profileBox.className = 'profile-box';
             frameBadge.style.display = 'none';
+            profileBanner.classList.remove('animated-banner');
+
+            // Рамка (полностью округляет окно профиля)
             if (data.customFrame) {
                 profileBox.classList.add(data.customFrame);
                 const frameItem = allFrames.find(f => f.className === data.customFrame);
-                if (frameItem) { frameBadge.textContent = frameItem.icon; frameBadge.style.display = 'flex'; }
+                if (frameItem) {
+                    frameBadge.textContent = frameItem.icon;
+                    frameBadge.style.display = 'flex';
+                }
             }
-            document.getElementById('profileBanner').style.background = data.banner || 'linear-gradient(90deg, #111, #333)';
+
+            // Баннер
+            profileBanner.style.background = data.banner || 'linear-gradient(90deg, #111, #333)';
             const bannerItem = shopItems.find(i => i.style === data.banner);
-            if (bannerItem && bannerItem.isAnimated) document.getElementById('profileBanner').classList.add('animated-banner');
-            else document.getElementById('profileBanner').classList.remove('animated-banner');
+            if (bannerItem && bannerItem.isAnimated) profileBanner.classList.add('animated-banner');
+
+            // Аватар, ник, пин, титул
             document.getElementById('profileAvatar').textContent = data.avatar || '👤';
             const nameEl = document.getElementById('profileName');
             nameEl.textContent = data.nickname || 'Игрок';
@@ -1796,17 +1899,29 @@
             rankEl.textContent = getDisplayTitle(data.wins || 0, data.customTitle);
             const isDarkBlue = allTitles.some(t => t.isDarkBlue && `${t.icon} ${t.name.toUpperCase()}` === data.customTitle);
             rankEl.className = 'profile-rank ' + (isDarkBlue ? 'dark-blue-title' : '');
-            
-            document.getElementById('profileWins').textContent = data.wins || 0;
-            document.getElementById('profileScore').textContent = Math.floor(data.score);
-            document.getElementById('profileLevel').textContent = data.level;
 
+            // Статистика: кубки (= wins, как в топе), монеты, уровень
+            document.getElementById('profileWins').textContent = data.wins || 0;
+            document.getElementById('profileScore').textContent = Math.floor(data.score || 0);
+            document.getElementById('profileLevel').textContent = data.level || 1;
+
+            // Кнопки дружбы/чата
             const addBtn = document.getElementById('addFriendBtn');
             const chatBtn = document.getElementById('chatWithFriendBtn');
             if (uid !== currentUser.uid) {
-                if (userData.friends && userData.friends.includes(uid)) { addBtn.style.display = 'none'; chatBtn.style.display = 'block'; }
-                else { addBtn.style.display = 'block'; addBtn.textContent = 'Добавить в друзья'; addBtn.disabled = false; chatBtn.style.display = 'none'; }
-            } else { addBtn.style.display = 'none'; chatBtn.style.display = 'none'; }
+                if (userData.friends && userData.friends.includes(uid)) {
+                    addBtn.style.display = 'none';
+                    chatBtn.style.display = 'block';
+                } else {
+                    addBtn.style.display = 'block';
+                    addBtn.textContent = 'Добавить в друзья';
+                    addBtn.disabled = false;
+                    chatBtn.style.display = 'none';
+                }
+            } else {
+                addBtn.style.display = 'none';
+                chatBtn.style.display = 'none';
+            }
             showScreen(profileScreen);
         }
 
@@ -1842,4 +1957,4 @@
         animate();
     </script>
 </body>
-  </html>
+    </html>
